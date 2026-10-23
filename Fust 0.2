@@ -1,51 +1,36 @@
 -- ═══════════════════════════════════════════
---                 FUST SCRIPT | PART 1
+--                 FUST SCRIPT | PART 1 (UI)
 -- ═══════════════════════════════════════════
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LP = Players.LocalPlayer
-local playerGui = LP:WaitForChild("PlayerGui")
+local PlayerGui = LP:WaitForChild("PlayerGui")
 
 _G.Fust = _G.Fust or {}
-local DS = _G.Fust
+local Fust = _G.Fust
 
--- Безопасный merge: добавляем недостающие ключи в существующий конфиг
-local defaults = {
+-- Безопасный конфиг (если запускаешь повторно, он не сломается)
+Fust.Config = {
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true,
     Aim_Part = "Head", Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
     NightVision = false, NoTrajectory = false,
-    BulletTrack = false, BT_FOV = 150, BT_Radius = 500, BT_Chance = 100,
+    BulletTrack = false, BT_FOV = 150, BT_Radius = 500, BT_Chance = 100
 }
-DS.Config = DS.Config or {}
-for k, v in pairs(defaults) do
-    if DS.Config[k] == nil then DS.Config[k] = v end
-end
 
--- Удаляем старый GUI если есть
-pcall(function()
-    local old = playerGui:FindFirstChild("FustScriptUI")
-    if old then old:Destroy() end
-end)
+local old = PlayerGui:FindFirstChild("FustUI")
+if old then old:Destroy() end
 
-local T = {
-    bg = Color3.fromRGB(255, 255, 255),
-    text = Color3.fromRGB(20, 20, 20),
-    accent = Color3.fromRGB(50, 150, 255),
-    track = Color3.fromRGB(220, 220, 220)
-}
-DS.Theme = T
+local T = { bg = Color3.fromRGB(255,255,255), text = Color3.fromRGB(20,20,20), accent = Color3.fromRGB(50,150,255), track = Color3.fromRGB(220,220,220) }
+Fust.Theme = T
 
--- Всё в pcall чтобы увидеть ошибку если что
-local ok, err = pcall(function()
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "FustScriptUI"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = playerGui
-DS.Gui = gui
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "FustUI"
+Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
+Gui.Parent = PlayerGui
+Fust.Gui = Gui
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 380, 0, 360)
@@ -54,10 +39,11 @@ Main.BackgroundColor3 = T.bg
 Main.BackgroundTransparency = 0.1
 Main.BorderSizePixel = 0
 Main.Active = true
-Main.Parent = gui
+Main.Parent = Gui
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
 local shadow = Instance.new("UIStroke", Main); shadow.Color = Color3.fromRGB(200, 200, 200); shadow.Thickness = 1
 
+-- Header (Перетаскивание)
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 40)
 Header.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
@@ -86,6 +72,7 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
+-- Вкладки
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -20, 0, 30)
 TabBar.Position = UDim2.new(0, 10, 0, 45)
@@ -100,23 +87,23 @@ Content.Position = UDim2.new(0, 10, 0, 80)
 Content.BackgroundTransparency = 1
 Content.Parent = Main
 
-local pages = {}
-local tabBtns = {}
+local Pages = {}
+local TabBtns = {}
 
-local function switchTab(index)
-    for i, btn in ipairs(tabBtns) do
-        btn.BackgroundTransparency = (i == index) and 0 or 1
-        btn.TextColor3 = (i == index) and Color3.new(1,1,1) or T.text
+local function SwitchTab(idx)
+    for i, btn in ipairs(TabBtns) do
+        btn.BackgroundTransparency = (i == idx) and 0 or 1
+        btn.TextColor3 = (i == idx) and Color3.new(1,1,1) or T.text
     end
-    for i, page in ipairs(pages) do
-        page.Visible = (i == index)
+    for i, page in ipairs(Pages) do
+        page.Visible = (i == idx)
     end
 end
 
-local function CreateTab(name, index)
+local function CreateTab(name, idx)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1/3, 0, 1, 0)
-    btn.Position = UDim2.new((index-1)/3, 0, 0, 0)
+    btn.Position = UDim2.new((idx-1)/3, 0, 0, 0)
     btn.BackgroundColor3 = T.accent
     btn.BackgroundTransparency = 1
     btn.Text = name
@@ -124,101 +111,127 @@ local function CreateTab(name, index)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 12
     btn.Parent = TabBar
-
+    
     local page = Instance.new("ScrollingFrame")
     page.Size = UDim2.new(1, 0, 1, 0)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
     page.ScrollBarThickness = 2
     page.ScrollBarImageColor3 = T.accent
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
     page.CanvasSize = UDim2.new(0, 0, 0, 0)
     page.Visible = false
     page.Parent = Content
-
+    
     local layout = Instance.new("UIListLayout", page)
     layout.Padding = UDim.new(0, 5)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
-    end)
-
-    table.insert(tabBtns, btn)
-    table.insert(pages, page)
-
-    btn.MouseButton1Click:Connect(function() switchTab(index) end)
+    
+    table.insert(TabBtns, btn)
+    table.insert(Pages, page)
+    btn.MouseButton1Click:Connect(function() SwitchTab(idx) end)
     return page
 end
 
-local function CreateToggle(parent, text, key, default)
-    if default == nil then default = false end
-    if DS.Config[key] == nil then DS.Config[key] = default end
-
-    local btn = Instance.new("TextButton"); btn.Size = UDim2.new(1, -5, 0, 35)
-    btn.BackgroundColor3 = Color3.fromRGB(250,250,250); btn.BackgroundTransparency = 0.5
-    btn.BorderSizePixel = 0; btn.Text = ""; btn.Parent = parent
+-- Элементы UI
+local function CreateToggle(parent, text, key)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -5, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(250,250,250)
+    btn.BackgroundTransparency = 0.5
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
-
-    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1,-50,1,0); lbl.Position = UDim2.new(0,10,0,0)
-    lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = T.text
-    lbl.Font = Enum.Font.Gotham; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = btn
-
-    local track = Instance.new("Frame"); track.Size = UDim2.new(0,36,0,20); track.Position = UDim2.new(1,-46,0.5,-10)
-    track.BackgroundColor3 = DS.Config[key] and T.accent or T.track; track.Parent = btn
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1,-50,1,0)
+    lbl.Position = UDim2.new(0,10,0,0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = T.text
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = btn
+    
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(0,36,0,20)
+    track.Position = UDim2.new(1,-46,0.5,-10)
+    track.BackgroundColor3 = Fust.Config[key] and T.accent or T.track
+    track.Parent = btn
     Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
-
-    local knob = Instance.new("Frame"); knob.Size = UDim2.new(0,16,0,16)
-    knob.Position = DS.Config[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)
-    knob.BackgroundColor3 = Color3.new(1,1,1); knob.Parent = track; Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
-
+    
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0,16,0,16)
+    knob.Position = Fust.Config[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)
+    knob.BackgroundColor3 = Color3.new(1,1,1)
+    knob.Parent = track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+    
     btn.MouseButton1Click:Connect(function()
-        DS.Config[key] = not DS.Config[key]
-        track.BackgroundColor3 = DS.Config[key] and T.accent or T.track
-        knob:TweenPosition(DS.Config[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8), "Out", "Quad", 0.1, true)
+        Fust.Config[key] = not Fust.Config[key]
+        track.BackgroundColor3 = Fust.Config[key] and T.accent or T.track
+        knob:TweenPosition(Fust.Config[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8), "Out", "Quad", 0.1, true)
     end)
 end
 
-local function CreateSlider(parent, text, key, min, max, default)
-    if default == nil then default = min end
-    if DS.Config[key] == nil then DS.Config[key] = default end
-
-    local frame = Instance.new("Frame"); frame.Size = UDim2.new(1, -5, 0, 50)
-    frame.BackgroundColor3 = Color3.fromRGB(250,250,250); frame.BackgroundTransparency = 0.5
-    frame.BorderSizePixel = 0; frame.Parent = parent; Instance.new("UICorner", frame).CornerRadius = UDim.new(0,6)
-
-    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1,-20,0,20); lbl.Position = UDim2.new(0,10,0,5)
-    lbl.BackgroundTransparency = 1; lbl.Text = text .. ": " .. DS.Config[key]; lbl.TextColor3 = T.text
-    lbl.Font = Enum.Font.Gotham; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = frame
-
-    local barBg = Instance.new("Frame"); barBg.Size = UDim2.new(1,-20,0,6); barBg.Position = UDim2.new(0,10,0,30)
-    barBg.BackgroundColor3 = T.track; barBg.Parent = frame; Instance.new("UICorner", barBg).CornerRadius = UDim.new(1,0)
-
-    local startRatio = (DS.Config[key] - min) / math.max(max - min, 1)
-    startRatio = math.clamp(startRatio, 0, 1)
-
-    local fill = Instance.new("Frame"); fill.Size = UDim2.new(startRatio,0,1,0)
-    fill.BackgroundColor3 = T.accent; fill.Parent = barBg; Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
-
+local function CreateSlider(parent, text, key, min, max)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -5, 0, 50)
+    frame.BackgroundColor3 = Color3.fromRGB(250,250,250)
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0,6)
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1,-20,0,20)
+    lbl.Position = UDim2.new(0,10,0,5)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text .. ": " .. tostring(Fust.Config[key])
+    lbl.TextColor3 = T.text
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+    
+    local barBg = Instance.new("Frame")
+    barBg.Size = UDim2.new(1,-20,0,6)
+    barBg.Position = UDim2.new(0,10,0,30)
+    barBg.BackgroundColor3 = T.track
+    barBg.Parent = frame
+    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1,0)
+    
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((Fust.Config[key] - min) / math.max(max - min, 1),0,1,0)
+    fill.BackgroundColor3 = T.accent
+    fill.Parent = barBg
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+    
     local draggingSlider = false
     local function update(input)
         local pos = math.clamp((input.Position.X - barBg.AbsolutePosition.X) / barBg.AbsoluteSize.X, 0, 1)
-        local val = math.floor(min + (max-min)*pos + 0.5); DS.Config[key] = val
-        lbl.Text = text .. ": " .. val; fill.Size = UDim2.new(pos,0,1,0)
+        local val = math.floor(min + (max-min)*pos + 0.5)
+        Fust.Config[key] = val
+        lbl.Text = text .. ": " .. val
+        fill.Size = UDim2.new(pos,0,1,0)
     end
-
-    barBg.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            draggingSlider = true; update(input)
-        end
+    
+    barBg.InputBegan:Connect(function(input) 
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then 
+            draggingSlider = true; update(input) 
+        end 
     end)
-    UserInputService.InputChanged:Connect(function(input)
-        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then update(input) end
+    UserInputService.InputChanged:Connect(function(input) 
+        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then update(input) end 
     end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end
+    UserInputService.InputEnded:Connect(function(input) 
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end 
     end)
 end
 
--- BUILD UI
+-- СБОРКА ВКЛАДОК
 local espPage = CreateTab("ESP", 1)
 CreateToggle(espPage, "Enable ESP", "ESP_Enabled")
 CreateToggle(espPage, "Draw Boxes", "ESP_Boxes")
@@ -238,18 +251,26 @@ CreateSlider(aimPage, "BT Chance", "BT_Chance", 1, 100)
 CreateSlider(aimPage, "Smoothness", "Aim_Smooth", 1, 10)
 CreateSlider(aimPage, "FOV Size", "Aim_FOV", 50, 500)
 
-local targetRow = Instance.new("Frame"); targetRow.Size = UDim2.new(1,-5,0,30)
-targetRow.BackgroundTransparency = 1; targetRow.Parent = aimPage
+local targetRow = Instance.new("Frame")
+targetRow.Size = UDim2.new(1,-5,0,30)
+targetRow.BackgroundTransparency = 1
+targetRow.Parent = aimPage
 Instance.new("UIListLayout", targetRow).FillDirection = Enum.FillDirection.Horizontal
 Instance.new("UIListLayout", targetRow).Padding = UDim.new(0,10)
 
 local function CreateTarget(parent, text, val)
-    local btn = Instance.new("TextButton"); btn.Size = UDim2.new(0.5,-5,1,0)
-    btn.BackgroundColor3 = DS.Config.Aim_Part == val and T.accent or T.track
-    btn.BorderSizePixel = 0; btn.Text = text; btn.TextColor3 = DS.Config.Aim_Part == val and Color3.new(1,1,1) or T.text
-    btn.Font = Enum.Font.GothamBold; btn.TextSize = 12; btn.Parent = parent; Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.5,-5,1,0)
+    btn.BackgroundColor3 = Fust.Config.Aim_Part == val and T.accent or T.track
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = Fust.Config.Aim_Part == val and Color3.new(1,1,1) or T.text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Parent = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
     btn.MouseButton1Click:Connect(function()
-        DS.Config.Aim_Part = val
+        Fust.Config.Aim_Part = val
         for _, other in ipairs(parent:GetChildren()) do
             if other:IsA("TextButton") then
                 other.BackgroundColor3 = other.Text == val and T.accent or T.track
@@ -258,43 +279,37 @@ local function CreateTarget(parent, text, val)
         end
     end)
 end
-CreateTarget(targetRow, "Head", "Head"); CreateTarget(targetRow, "Torso", "Torso")
+CreateTarget(targetRow, "Head", "Head")
+CreateTarget(targetRow, "Torso", "Torso")
 
 local visPage = CreateTab("Visuals", 3)
 CreateToggle(visPage, "Night Vision", "NightVision")
 
-switchTab(1)
-
-end) -- конец pcall
-
-if not ok then
-    warn("[FUST] ОШИБКА в Part 1: " .. tostring(err))
-else
-    print("[FUST] Part 1 (UI) loaded. Запусти Part 2.")
-end
-
+SwitchTab(1)
+print("[FUST] Part 1 (UI) Loaded.")
 -- ═══════════════════════════════════════════
---                 FUST SCRIPT | PART 2
+--                 FUST SCRIPT | PART 2 (ESP & AIM)
 -- ═══════════════════════════════════════════
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
 local Camera = workspace.CurrentCamera
 local LP = Players.LocalPlayer
+local Fust = _G.Fust
 
-local DS = _G.Fust
-if not DS or not DS.Gui or not DS.Config then
+if not Fust or not Fust.Config or not Fust.Gui then
     warn("[FUST] Ошибка! Сначала запусти Часть 1.")
     return
 end
-local Config = DS.Config
-local T = DS.Theme
-local gui = DS.Gui
+local Config = Fust.Config
+local Gui = Fust.Gui
+local T = Fust.Theme
 
 local fovCircle = Instance.new("Frame")
-fovCircle.AnchorPoint = Vector2.new(0.5, 0.5); fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-fovCircle.BackgroundTransparency = 1; fovCircle.Parent = gui
+fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+fovCircle.BackgroundTransparency = 1
+fovCircle.Parent = Gui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(0.5, 0)
 local fovStroke = Instance.new("UIStroke", fovCircle)
 fovStroke.Color = T.accent; fovStroke.Thickness = 1; fovStroke.Transparency = 0.3
@@ -305,18 +320,12 @@ aimLine.BackgroundColor3 = T.accent
 aimLine.BorderSizePixel = 0
 aimLine.Visible = false
 aimLine.ZIndex = 2
-aimLine.Parent = gui
+aimLine.Parent = Gui
 
 local espData = {}
-local nightVisionColor = Instance.new("ColorCorrectionEffect")
-nightVisionColor.Name = "FustNV"
-nightVisionColor.TintColor = Color3.fromRGB(100, 255, 100)
-nightVisionColor.Saturation = 0.5
-nightVisionColor.Brightness = 0.2
-nightVisionColor.Enabled = false
-nightVisionColor.Parent = Lighting
-
 local botCache = {}
+
+-- Фоновый поиск ботов (обновление раз в 1.5 секунды)
 task.spawn(function()
     while task.wait(1.5) do
         local newCache = {}
@@ -340,7 +349,8 @@ local function isVisible(targetPart, targetChar)
     return hit == nil
 end
 
-local function getTargetByParams(fov, maxDist, checkVisible)
+-- Экспортируем функцию поиска цели для Части 3 (Bullet Track)
+function Fust.GetTargetByParams(fov, maxDist, checkVisible)
     local closest, minDist = nil, fov
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local myHead = LP.Character and LP.Character:FindFirstChild("Head")
@@ -348,7 +358,7 @@ local function getTargetByParams(fov, maxDist, checkVisible)
 
     local function check(char)
         if not char then return end
-        local part = char:FindFirstChild("Head")
+        local part = char:FindFirstChild(Config.Aim_Part)
         local hum = char:FindFirstChildOfClass("Humanoid")
         if part and hum and hum.Health > 0 then
             local dist3d = (part.Position - myHead.Position).Magnitude
@@ -367,88 +377,17 @@ local function getTargetByParams(fov, maxDist, checkVisible)
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then check(plr.Character) end
     end
-    for _, v in ipairs(botCache) do check(v) end
+    if Config.Aim_Bots then
+        for _, v in ipairs(botCache) do check(v) end
+    end
     return closest
 end
 
-local function getTarget()
-    return getTargetByParams(Config.Aim_FOV, 1000, Config.Aim_VisibleCheck)
-end
-
-workspace.DescendantAdded:Connect(function(inst)
-    if not inst:IsA("BasePart") then return end
-    if not (Config.NoTrajectory or Config.BulletTrack) then return end
-
-    local n = inst.Name:lower()
-    if not (n:find("arrow") or n:find("bullet") or n:find("proj")
-         or n:find("bolt") or n:find("shoot") or n:find("missile")) then
-        return
-    end
-
-    local tracking = false
-    local trackPart = nil
-
-    if Config.BulletTrack then
-        local roll = math.random(1, 100)
-        if roll <= Config.BT_Chance then
-            trackPart = getTargetByParams(Config.BT_FOV, Config.BT_Radius, false)
-            if trackPart then tracking = true end
-        end
-    end
-
-    if not Config.NoTrajectory and not tracking then return end
-
-    pcall(function()
-        inst.Gravity = 0
-        inst.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, 1, 1)
-        for _, child in ipairs(inst:GetChildren()) do
-            if child:IsA("BodyForce") or child:IsA("VectorForce")
-               or child:IsA("BodyVelocity") or child:IsA("LinearVelocity") then
-                child:Destroy()
-            end
-        end
-        local speed = inst.AssemblyLinearVelocity.Magnitude
-        if speed < 50 then speed = 250 end
-
-        task.spawn(function()
-            while inst.Parent do
-                task.wait(0.01)
-                pcall(function()
-                    local dir = nil
-                    if tracking and trackPart and trackPart.Parent then
-                        local hum = trackPart.Parent:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then
-                            dir = (trackPart.Position - inst.Position).Unit
-                        else
-                            tracking = false
-                        end
-                    end
-                    if not dir then
-                        if Config.NoTrajectory then
-                            dir = Camera.CFrame.LookVector
-                        else
-                            break
-                        end
-                    end
-                    inst.AssemblyLinearVelocity = dir * speed
-                    inst.CFrame = CFrame.lookAt(inst.Position, inst.Position + dir)
-                end)
-            end
-        end)
-    end)
-end)
-
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        if Config.NightVision then
-            nightVisionColor.Enabled = true
-            Lighting.Ambient = Color3.fromRGB(150, 150, 150)
-            Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-        else
-            nightVisionColor.Enabled = false
-        end
-
         local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        
+        -- 1. FOV Circle
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, Config.Aim_FOV * 2, 0, Config.Aim_FOV * 2)
@@ -456,9 +395,10 @@ RunService.RenderStepped:Connect(function()
             fovCircle.Visible = false
         end
 
+        -- 2. Aimbot & Aim Line
         aimLine.Visible = false
         if Config.Aim_Enabled then
-            local target = getTarget()
+            local target = Fust.GetTargetByParams(Config.Aim_FOV, 1500, Config.Aim_VisibleCheck)
             if target then
                 local alpha = Config.Aim_Smooth / 10
                 local targetCF = CFrame.lookAt(Camera.CFrame.Position, target.Position)
@@ -468,7 +408,7 @@ RunService.RenderStepped:Connect(function()
                 local vec = Vector2.new(sp.X, sp.Y) - center
                 local len = vec.Magnitude
                 local angle = math.deg(math.atan2(vec.Y, vec.X))
-
+                
                 aimLine.Size = UDim2.new(0, len, 0, 1)
                 aimLine.Position = UDim2.new(0, center.X, 0, center.Y)
                 aimLine.Rotation = angle
@@ -476,6 +416,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
+        -- 3. ESP
         local entitiesToDraw = {}
         if Config.ESP_Enabled then
             for _, plr in ipairs(Players:GetPlayers()) do
@@ -490,42 +431,43 @@ RunService.RenderStepped:Connect(function()
             local hum = char:FindFirstChildOfClass("Humanoid")
             local root = char:FindFirstChild("HumanoidRootPart")
             local head = char:FindFirstChild("Head")
-
+            
             if hum and hum.Health > 0 and root and head then
-                local topPos, topOn = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                local botPos, botOn = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 2.8, 0))
-
+                local topPos, topOn = Camera:WorldToViewportPoint(head.Position + Vector3.new(0,0.5,0))
+                local botPos, botOn = Camera:WorldToViewportPoint(root.Position - Vector3.new(0,2.8,0))
+                
                 if topOn and botOn and topPos.Z > 0 then
                     local e = espData[char]
                     if not e then
-                        e = { box = Instance.new("Frame", gui), stroke = Instance.new("UIStroke"), name = Instance.new("TextLabel", gui) }
+                        e = { box = Instance.new("Frame", Gui), stroke = Instance.new("UIStroke"), name = Instance.new("TextLabel", Gui) }
                         e.box.BackgroundTransparency = 1; e.box.BorderSizePixel = 0
                         e.stroke.Thickness = 1.5; e.stroke.Parent = e.box
                         e.name.BackgroundTransparency = 1; e.name.TextColor3 = Color3.new(1,1,1)
                         e.name.Font = Enum.Font.GothamBold; e.name.TextSize = 12; e.name.TextStrokeTransparency = 0
                         espData[char] = e
                     end
-
+                    
                     local visible = isVisible(head, char)
                     e.stroke.Color = visible and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 60, 60)
-
+                    
                     local h = math.abs(botPos.Y - topPos.Y); local w = h * 0.6
                     e.box.Visible = Config.ESP_Boxes
                     e.box.Position = UDim2.new(0, topPos.X - (w/2), 0, topPos.Y)
                     e.box.Size = UDim2.new(0, w, 0, h)
-
+                    
                     e.name.Visible = Config.ESP_Names
                     e.name.Position = UDim2.new(0, topPos.X - 50, 0, topPos.Y - 18)
                     e.name.Size = UDim2.new(0, 100, 0, 15)
                     e.name.Text = char.Name
-                elseif espData[char] then
-                    espData[char].box.Visible = false; espData[char].name.Visible = false
+                elseif espData[char] then 
+                    espData[char].box.Visible = false; espData[char].name.Visible = false 
                 end
-            elseif espData[char] then
-                espData[char].box.Visible = false; espData[char].name.Visible = false
+            elseif espData[char] then 
+                espData[char].box.Visible = false; espData[char].name.Visible = false 
             end
         end
 
+        -- Очистка "призраков" ESP
         for char, e in pairs(espData) do
             local hum = char:FindFirstChildOfClass("Humanoid")
             if not char.Parent or not hum or hum.Health <= 0 or not table.find(entitiesToDraw, char) then
@@ -536,5 +478,114 @@ RunService.RenderStepped:Connect(function()
         end
     end)
 end)
+print("[FUST] Part 2 (ESP & Aim) Loaded.")
+-- ═══════════════════════════════════════════
+--                 FUST SCRIPT | PART 3 (Projectiles)
+-- ═══════════════════════════════════════════
 
-print("[FUST] Part 2 loaded.")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Camera = workspace.CurrentCamera
+
+local Fust = _G.Fust
+if not Fust or not Fust.Config then
+    warn("[FUST] Ошибка! Запусти Часть 1 и 2.")
+    return
+end
+local Config = Fust.Config
+
+-- Night Vision (добавлено сюда, чтобы не мешать ESP)
+local nv = Instance.new("ColorCorrectionEffect")
+nv.Name = "FustNV"
+nv.TintColor = Color3.fromRGB(100, 255, 100)
+nv.Saturation = 0.5
+nv.Brightness = 0.2
+nv.Enabled = false
+nv.Parent = Lighting
+
+RunService.RenderStepped:Connect(function()
+    if Config.NightVision then
+        nv.Enabled = true
+        Lighting.Ambient = Color3.fromRGB(150, 150, 150)
+        Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+    else
+        nv.Enabled = false
+    end
+end)
+
+-- Логика снарядов
+workspace.DescendantAdded:Connect(function(inst)
+    if not inst:IsA("BasePart") then return end
+    if not (Config.NoTrajectory or Config.BulletTrack) then return end
+
+    local n = inst.Name:lower()
+    if not (n:find("arrow") or n:find("bullet") or n:find("proj")
+         or n:find("bolt") or n:find("shoot") or n:find("missile")) then
+        return
+    end
+
+    local tracking = false
+    local trackPart = nil
+
+    -- Проверка на шанс срабатывания Bullet Track
+    if Config.BulletTrack then
+        local roll = math.random(1, 100)
+        if roll <= Config.BT_Chance then
+            if Fust.GetTargetByParams then
+                trackPart = Fust.GetTargetByParams(Config.BT_FOV, Config.BT_Radius, false)
+                if trackPart then tracking = true end
+            end
+        end
+    end
+
+    if not Config.NoTrajectory and not tracking then return end
+
+    pcall(function()
+        -- Обнуляем физику
+        inst.Gravity = 0
+        inst.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, 1, 1)
+        
+        -- Удаляем силы
+        for _, child in ipairs(inst:GetChildren()) do
+            if child:IsA("BodyForce") or child:IsA("VectorForce")
+               or child:IsA("BodyVelocity") or child:IsA("LinearVelocity") then
+                child:Destroy()
+            end
+        end
+        
+        local speed = inst.AssemblyLinearVelocity.Magnitude
+        if speed < 50 then speed = 250 end
+
+        task.spawn(function()
+            while inst.Parent do
+                task.wait(0.01)
+                pcall(function()
+                    local dir = nil
+                    
+                    -- Если трекаем - летим в цель
+                    if tracking and trackPart and trackPart.Parent then
+                        local hum = trackPart.Parent:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 then
+                            dir = (trackPart.Position - inst.Position).Unit
+                        else
+                            tracking = false
+                        end
+                    end
+                    
+                    -- Если не трекаем - летим по прицелу
+                    if not dir then
+                        if Config.NoTrajectory then
+                            dir = Camera.CFrame.LookVector
+                        else
+                            break
+                        end
+                    end
+                    
+                    inst.AssemblyLinearVelocity = dir * speed
+                    inst.CFrame = CFrame.lookAt(inst.Position, inst.Position + dir)
+                end)
+            end
+        end)
+    end)
+end)
+print("[FUST] Part 3 (Projectiles) Loaded.")
