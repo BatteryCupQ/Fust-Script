@@ -10,18 +10,20 @@ local playerGui = LP:WaitForChild("PlayerGui")
 _G.Fust = _G.Fust or {}
 local DS = _G.Fust
 
-DS.Config = DS.Config or {
+-- Безопасный merge: добавляем недостающие ключи в существующий конфиг
+local defaults = {
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true,
     Aim_Part = "Head", Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
     NightVision = false, NoTrajectory = false,
-    -- НОВОЕ: Bullet Track
-    BulletTrack = false,
-    BT_FOV = 150,
-    BT_Radius = 500,
-    BT_Chance = 100,
+    BulletTrack = false, BT_FOV = 150, BT_Radius = 500, BT_Chance = 100,
 }
+DS.Config = DS.Config or {}
+for k, v in pairs(defaults) do
+    if DS.Config[k] == nil then DS.Config[k] = v end
+end
 
+-- Удаляем старый GUI если есть
 pcall(function()
     local old = playerGui:FindFirstChild("FustScriptUI")
     if old then old:Destroy() end
@@ -34,6 +36,9 @@ local T = {
     track = Color3.fromRGB(220, 220, 220)
 }
 DS.Theme = T
+
+-- Всё в pcall чтобы увидеть ошибку если что
+local ok, err = pcall(function()
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "FustScriptUI"
@@ -145,6 +150,9 @@ local function CreateTab(name, index)
 end
 
 local function CreateToggle(parent, text, key, default)
+    if default == nil then default = false end
+    if DS.Config[key] == nil then DS.Config[key] = default end
+
     local btn = Instance.new("TextButton"); btn.Size = UDim2.new(1, -5, 0, 35)
     btn.BackgroundColor3 = Color3.fromRGB(250,250,250); btn.BackgroundTransparency = 0.5
     btn.BorderSizePixel = 0; btn.Text = ""; btn.Parent = parent
@@ -155,14 +163,13 @@ local function CreateToggle(parent, text, key, default)
     lbl.Font = Enum.Font.Gotham; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = btn
 
     local track = Instance.new("Frame"); track.Size = UDim2.new(0,36,0,20); track.Position = UDim2.new(1,-46,0.5,-10)
-    track.BackgroundColor3 = default and T.accent or T.track; track.Parent = btn
+    track.BackgroundColor3 = DS.Config[key] and T.accent or T.track; track.Parent = btn
     Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
 
     local knob = Instance.new("Frame"); knob.Size = UDim2.new(0,16,0,16)
-    knob.Position = default and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)
+    knob.Position = DS.Config[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)
     knob.BackgroundColor3 = Color3.new(1,1,1); knob.Parent = track; Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
-    DS.Config[key] = default
     btn.MouseButton1Click:Connect(function()
         DS.Config[key] = not DS.Config[key]
         track.BackgroundColor3 = DS.Config[key] and T.accent or T.track
@@ -171,18 +178,24 @@ local function CreateToggle(parent, text, key, default)
 end
 
 local function CreateSlider(parent, text, key, min, max, default)
+    if default == nil then default = min end
+    if DS.Config[key] == nil then DS.Config[key] = default end
+
     local frame = Instance.new("Frame"); frame.Size = UDim2.new(1, -5, 0, 50)
     frame.BackgroundColor3 = Color3.fromRGB(250,250,250); frame.BackgroundTransparency = 0.5
     frame.BorderSizePixel = 0; frame.Parent = parent; Instance.new("UICorner", frame).CornerRadius = UDim.new(0,6)
 
     local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1,-20,0,20); lbl.Position = UDim2.new(0,10,0,5)
-    lbl.BackgroundTransparency = 1; lbl.Text = text .. ": " .. default; lbl.TextColor3 = T.text
+    lbl.BackgroundTransparency = 1; lbl.Text = text .. ": " .. DS.Config[key]; lbl.TextColor3 = T.text
     lbl.Font = Enum.Font.Gotham; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = frame
 
     local barBg = Instance.new("Frame"); barBg.Size = UDim2.new(1,-20,0,6); barBg.Position = UDim2.new(0,10,0,30)
     barBg.BackgroundColor3 = T.track; barBg.Parent = frame; Instance.new("UICorner", barBg).CornerRadius = UDim.new(1,0)
 
-    local fill = Instance.new("Frame"); fill.Size = UDim2.new((default-min)/(max-min),0,1,0)
+    local startRatio = (DS.Config[key] - min) / math.max(max - min, 1)
+    startRatio = math.clamp(startRatio, 0, 1)
+
+    local fill = Instance.new("Frame"); fill.Size = UDim2.new(startRatio,0,1,0)
     fill.BackgroundColor3 = T.accent; fill.Parent = barBg; Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
 
     local draggingSlider = false
@@ -207,23 +220,23 @@ end
 
 -- BUILD UI
 local espPage = CreateTab("ESP", 1)
-CreateToggle(espPage, "Enable ESP", "ESP_Enabled", DS.Config.ESP_Enabled)
-CreateToggle(espPage, "Draw Boxes", "ESP_Boxes", DS.Config.ESP_Boxes)
-CreateToggle(espPage, "Draw Names", "ESP_Names", DS.Config.ESP_Names)
-CreateToggle(espPage, "Bot ESP (NPCs)", "ESP_Bots", DS.Config.ESP_Bots)
+CreateToggle(espPage, "Enable ESP", "ESP_Enabled")
+CreateToggle(espPage, "Draw Boxes", "ESP_Boxes")
+CreateToggle(espPage, "Draw Names", "ESP_Names")
+CreateToggle(espPage, "Bot ESP (NPCs)", "ESP_Bots")
 
 local aimPage = CreateTab("Aimbot", 2)
-CreateToggle(aimPage, "Enable Aimbot", "Aim_Enabled", DS.Config.Aim_Enabled)
-CreateToggle(aimPage, "Bot Aim (NPCs)", "Aim_Bots", DS.Config.Aim_Bots)
-CreateToggle(aimPage, "Visible Check", "Aim_VisibleCheck", DS.Config.Aim_VisibleCheck)
-CreateToggle(aimPage, "Show FOV Circle", "Aim_ShowFOV", DS.Config.Aim_ShowFOV)
-CreateToggle(aimPage, "No Trajectory", "NoTrajectory", DS.Config.NoTrajectory)
-CreateToggle(aimPage, "Bullet Track", "BulletTrack", DS.Config.BulletTrack)
-CreateSlider(aimPage, "BT FOV", "BT_FOV", 50, 500, DS.Config.BT_FOV)
-CreateSlider(aimPage, "BT Radius", "BT_Radius", 100, 2000, DS.Config.BT_Radius)
-CreateSlider(aimPage, "BT Chance", "BT_Chance", 1, 100, DS.Config.BT_Chance)
-CreateSlider(aimPage, "Smoothness", "Aim_Smooth", 1, 10, DS.Config.Aim_Smooth)
-CreateSlider(aimPage, "FOV Size", "Aim_FOV", 50, 500, DS.Config.Aim_FOV)
+CreateToggle(aimPage, "Enable Aimbot", "Aim_Enabled")
+CreateToggle(aimPage, "Bot Aim (NPCs)", "Aim_Bots")
+CreateToggle(aimPage, "Visible Check", "Aim_VisibleCheck")
+CreateToggle(aimPage, "Show FOV Circle", "Aim_ShowFOV")
+CreateToggle(aimPage, "No Trajectory", "NoTrajectory")
+CreateToggle(aimPage, "Bullet Track", "BulletTrack")
+CreateSlider(aimPage, "BT FOV", "BT_FOV", 50, 500)
+CreateSlider(aimPage, "BT Radius", "BT_Radius", 100, 2000)
+CreateSlider(aimPage, "BT Chance", "BT_Chance", 1, 100)
+CreateSlider(aimPage, "Smoothness", "Aim_Smooth", 1, 10)
+CreateSlider(aimPage, "FOV Size", "Aim_FOV", 50, 500)
 
 local targetRow = Instance.new("Frame"); targetRow.Size = UDim2.new(1,-5,0,30)
 targetRow.BackgroundTransparency = 1; targetRow.Parent = aimPage
@@ -248,10 +261,18 @@ end
 CreateTarget(targetRow, "Head", "Head"); CreateTarget(targetRow, "Torso", "Torso")
 
 local visPage = CreateTab("Visuals", 3)
-CreateToggle(visPage, "Night Vision", "NightVision", DS.Config.NightVision)
+CreateToggle(visPage, "Night Vision", "NightVision")
 
 switchTab(1)
-print("[FUST] Part 1 (UI + Bullet Track UI) loaded.")
+
+end) -- конец pcall
+
+if not ok then
+    warn("[FUST] ОШИБКА в Part 1: " .. tostring(err))
+else
+    print("[FUST] Part 1 (UI) loaded. Запусти Part 2.")
+end
+
 -- ═══════════════════════════════════════════
 --                 FUST SCRIPT | PART 2
 -- ═══════════════════════════════════════════
@@ -295,7 +316,6 @@ nightVisionColor.Brightness = 0.2
 nightVisionColor.Enabled = false
 nightVisionColor.Parent = Lighting
 
--- Кэш ботов (обновляется раз в 1.5 сек)
 local botCache = {}
 task.spawn(function()
     while task.wait(1.5) do
@@ -311,7 +331,6 @@ task.spawn(function()
     end
 end)
 
--- Видимость (Raycast)
 local function isVisible(targetPart, targetChar)
     if not Config.Aim_VisibleCheck then return true end
     local rp = RaycastParams.new()
@@ -321,7 +340,6 @@ local function isVisible(targetPart, targetChar)
     return hit == nil
 end
 
--- Поиск цели с параметрами (для Bullet Track)
 local function getTargetByParams(fov, maxDist, checkVisible)
     local closest, minDist = nil, fov
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -350,18 +368,13 @@ local function getTargetByParams(fov, maxDist, checkVisible)
         if plr ~= LP then check(plr.Character) end
     end
     for _, v in ipairs(botCache) do check(v) end
-
     return closest
 end
 
--- Стандартный поиск для аимбота (использует Aim_* настройки)
 local function getTarget()
     return getTargetByParams(Config.Aim_FOV, 1000, Config.Aim_VisibleCheck)
 end
 
--- ═══════════════════════════════════════════
--- BULLET LOGIC (No Trajectory + Bullet Track)
--- ═══════════════════════════════════════════
 workspace.DescendantAdded:Connect(function(inst)
     if not inst:IsA("BasePart") then return end
     if not (Config.NoTrajectory or Config.BulletTrack) then return end
@@ -372,7 +385,6 @@ workspace.DescendantAdded:Connect(function(inst)
         return
     end
 
-    -- Проверяем шанс Bullet Track
     local tracking = false
     local trackPart = nil
 
@@ -380,38 +392,29 @@ workspace.DescendantAdded:Connect(function(inst)
         local roll = math.random(1, 100)
         if roll <= Config.BT_Chance then
             trackPart = getTargetByParams(Config.BT_FOV, Config.BT_Radius, false)
-            if trackPart then
-                tracking = true
-            end
+            if trackPart then tracking = true end
         end
     end
 
     if not Config.NoTrajectory and not tracking then return end
 
     pcall(function()
-        -- Отключаем гравитацию
         inst.Gravity = 0
         inst.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, 1, 1)
-
-        -- Удаляем силы
         for _, child in ipairs(inst:GetChildren()) do
             if child:IsA("BodyForce") or child:IsA("VectorForce")
                or child:IsA("BodyVelocity") or child:IsA("LinearVelocity") then
                 child:Destroy()
             end
         end
-
         local speed = inst.AssemblyLinearVelocity.Magnitude
         if speed < 50 then speed = 250 end
 
         task.spawn(function()
             while inst.Parent do
                 task.wait(0.01)
-
                 pcall(function()
                     local dir = nil
-
-                    -- Проверка Bullet Track цели
                     if tracking and trackPart and trackPart.Parent then
                         local hum = trackPart.Parent:FindFirstChildOfClass("Humanoid")
                         if hum and hum.Health > 0 then
@@ -420,8 +423,6 @@ workspace.DescendantAdded:Connect(function(inst)
                             tracking = false
                         end
                     end
-
-                    -- Если не трекаем — летим по прицелу
                     if not dir then
                         if Config.NoTrajectory then
                             dir = Camera.CFrame.LookVector
@@ -429,7 +430,6 @@ workspace.DescendantAdded:Connect(function(inst)
                             break
                         end
                     end
-
                     inst.AssemblyLinearVelocity = dir * speed
                     inst.CFrame = CFrame.lookAt(inst.Position, inst.Position + dir)
                 end)
@@ -438,12 +438,8 @@ workspace.DescendantAdded:Connect(function(inst)
     end)
 end)
 
--- ═══════════════════════════════════════════
--- MAIN LOOP
--- ═══════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Night Vision
         if Config.NightVision then
             nightVisionColor.Enabled = true
             Lighting.Ambient = Color3.fromRGB(150, 150, 150)
@@ -452,7 +448,6 @@ RunService.RenderStepped:Connect(function()
             nightVisionColor.Enabled = false
         end
 
-        -- FOV
         local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
             fovCircle.Visible = true
@@ -461,7 +456,6 @@ RunService.RenderStepped:Connect(function()
             fovCircle.Visible = false
         end
 
-        -- Aimbot & Aim Line
         aimLine.Visible = false
         if Config.Aim_Enabled then
             local target = getTarget()
@@ -482,7 +476,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- ESP
         local entitiesToDraw = {}
         if Config.ESP_Enabled then
             for _, plr in ipairs(Players:GetPlayers()) do
@@ -533,7 +526,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- Очистка призраков
         for char, e in pairs(espData) do
             local hum = char:FindFirstChildOfClass("Humanoid")
             if not char.Parent or not hum or hum.Health <= 0 or not table.find(entitiesToDraw, char) then
@@ -545,4 +537,4 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
-print("[FUST] Part 2 (Logic + Bullet Track) loaded.")
+print("[FUST] Part 2 loaded.")
