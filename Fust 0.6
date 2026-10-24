@@ -11,11 +11,11 @@ local Fust = _G.Fust
 Fust.Config = {
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
     ESP_WeaponText = true, ESP_WeaponIcon = false, ESP_GunsGround = true,
-    ESP_HP_Text = true, ESP_HP_Bar = true, -- Новые настройки ХП
+    ESP_HP_Text = true, ESP_HP_Bar = true,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
-    NightVision = false, FOV_Arms = 70 -- Настройка FOV рук
+    NightVision = false, FOV_Arms = 70
 }
 
 if PlayerGui:FindFirstChild("FustUI") then PlayerGui.FustUI:Destroy() end
@@ -50,36 +50,6 @@ CounterText.TextColor3 = Color3.new(1,1,1)
 CounterText.Font = Enum.Font.GothamBold
 CounterText.TextSize = 12
 Fust.CounterText = CounterText
-
-local NotifyHolder = Instance.new("Frame", Gui)
-NotifyHolder.Size = UDim2.new(0, 250, 0.5, 200)
-NotifyHolder.Position = UDim2.new(0.5, -125, 0.2, 0)
-NotifyHolder.BackgroundTransparency = 1
-local NotifyLayout = Instance.new("UIListLayout", NotifyHolder)
-NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-NotifyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-NotifyLayout.Padding = UDim.new(0, 5)
-
-function Fust.Notify(title, text, color)
-    local card = Instance.new("Frame", NotifyHolder)
-    card.Size = UDim2.new(1, 0, 0, 45)
-    card.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    card.BackgroundTransparency = 1
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
-    Instance.new("UIStroke", card).Color = color or T.accent
-    local t1 = Instance.new("TextLabel", card)
-    t1.Size, t1.Position = UDim2.new(1, -10, 0, 15), UDim2.new(0, 5, 0, 5)
-    t1.BackgroundTransparency = 1; t1.Text = title
-    t1.TextColor3 = color or T.accent
-    t1.Font, t1.TextSize, t1.TextXAlignment = Enum.Font.GothamBold, 12, Enum.TextXAlignment.Left
-    local t2 = Instance.new("TextLabel", card)
-    t2.Size, t2.Position = UDim2.new(1, -10, 0, 20), UDim2.new(0, 5, 0, 20)
-    t2.BackgroundTransparency = 1; t2.Text = text
-    t2.TextColor3 = Color3.new(1,1,1); t2.Font, t2.TextSize = Enum.Font.Gotham, 10
-    t2.TextXAlignment, t2.TextWrapped = Enum.TextXAlignment.Left, true
-    TweenService:Create(card, TweenInfo.new(0.3), {BackgroundTransparency = 0.1}):Play()
-    task.delay(3, function() TweenService:Create(card, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play(); task.wait(0.3); card:Destroy() end)
-end
 
 local Main = Instance.new("Frame", Gui)
 Main.Size = UDim2.new(0, 360, 0, 380)
@@ -205,11 +175,11 @@ AddToggle(p1, "Enable ESP", "ESP_Enabled", 0)
 AddToggle(p1, "Draw Boxes", "ESP_Boxes", 35)
 AddToggle(p1, "Draw Names", "ESP_Names", 70)
 AddToggle(p1, "Bot ESP (NPCs)", "ESP_Bots", 105)
-AddToggle(p1, "HP Text", "ESP_HP_Text", 140) -- HP текст
-AddToggle(p1, "HP Bar", "ESP_HP_Bar", 175)   -- HP полоска
+AddToggle(p1, "HP Text", "ESP_HP_Text", 140)
+AddToggle(p1, "HP Bar", "ESP_HP_Bar", 175)
 AddToggle(p1, "Weapon Text", "ESP_WeaponText", 210)
 AddToggle(p1, "Weapon Icon", "ESP_WeaponIcon", 245)
-AddToggle(p1, "Guns ESP (Ground)", "ESP_GunsGround", 280) -- Оружие на земле
+AddToggle(p1, "Guns ESP (Ground)", "ESP_GunsGround", 280)
 
 local p2 = CreateTab("Aimbot", 2)
 AddToggle(p2, "Enable Aimbot", "Aim_Enabled", 0)
@@ -225,7 +195,7 @@ AddSlider(p2, "BT Radius", "BT_Radius", 100, 2000, 360)
 
 local p3 = CreateTab("Visuals", 3)
 AddToggle(p3, "Night Vision", "NightVision", 0)
-AddSlider(p3, "FOV Hands", "FOV_Arms", 60, 300, 35) -- Новый ползунок FOV рук
+AddSlider(p3, "FOV Hands", "FOV_Arms", 60, 300, 35)
 SwitchTab(1)
 
 local Players = game:GetService("Players")
@@ -240,7 +210,6 @@ local Config = Fust.Config
 local Gui = Fust.Gui
 local T = Fust.Theme
 
-local Icons = {["AK-47"]="rbxassetid://112199877713402", ["M4A1"]="rbxassetid://112199886750135", Default="rbxassetid://1316045217"}
 local fovCircle = Instance.new("Frame", Gui)
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -248,10 +217,6 @@ fovCircle.BackgroundTransparency = 1
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(0.5, 0)
 local fovStroke = Instance.new("UIStroke", fovCircle)
 fovStroke.Color, fovStroke.Thickness, fovStroke.Transparency = T.accent, 1, 0.3
-
-local nv = Instance.new("ColorCorrectionEffect")
-nv.Name, nv.TintColor, nv.Saturation, nv.Brightness = "FustNV", Color3.fromRGB(100, 255, 100), 0.5, 0.2
-nv.Parent = Lighting
 
 function Fust.IsValid(char)
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -348,13 +313,17 @@ end)
 
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- FOV рук
-        Camera.FieldOfView = Config.FOV_Arms
+        -- Безопасный FOV рук
+        if Camera.FieldOfView ~= Config.FOV_Arms then
+            Camera.FieldOfView = Config.FOV_Arms
+        end
         
-        nv.Enabled = Config.NightVision
+        -- Безопасный Night Vision (без зеленого фильтра)
         if Config.NightVision then
-            Lighting.Ambient = Color3.fromRGB(150, 150, 150)
-            Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+            Lighting.Brightness = 2
+            Lighting.GlobalShadows = false
+            Lighting.Ambient = Color3.fromRGB(130, 130, 130)
+            Lighting.OutdoorAmbient = Color3.fromRGB(130, 130, 130)
         end
 
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
@@ -455,8 +424,10 @@ RunService.RenderStepped:Connect(function()
                         }
                         e.b.BackgroundTransparency = 1; e.b.BorderSizePixel = 0
                         Instance.new("UIStroke", e.b).Color = Color3.fromRGB(255,60,60)
+                        
                         e.n.BackgroundTransparency = 1; e.n.TextColor3 = Color3.new(1,1,1)
                         e.n.Font = Enum.Font.GothamBold; e.n.TextSize = 11; e.n.TextStrokeTransparency = 0
+                        
                         e.icon.BackgroundTransparency = 1; e.icon.Size = UDim2.new(0, 30, 0, 30)
                         
                         e.hpTxt.BackgroundTransparency = 1; e.hpTxt.TextColor3 = Color3.fromRGB(0,255,0)
