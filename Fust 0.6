@@ -2,20 +2,35 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
+
+-- ОЧИСТКА СТАРЫХ ЭФФЕКТОВ (Лечим застрявший зеленый экран)
+for _, v in ipairs(Lighting:GetChildren()) do
+    if v:IsA("ColorCorrectionEffect") or v:IsA("Atmosphere") then
+        v:Destroy()
+    end
+end
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr.Character then
+        for _, v in ipairs(plr.Character:GetDescendants()) do
+            if v:IsA("Highlight") then v:Destroy() end
+        end
+    end
+end
 
 _G.Fust = _G.Fust or {}
 local Fust = _G.Fust
 
 Fust.Config = {
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
-    ESP_WeaponText = true, ESP_WeaponIcon = false, ESP_GunsGround = true,
+    ESP_WeaponText = true, ESP_WeaponIcon = false,
     ESP_HP_Text = true, ESP_HP_Bar = true,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
-    NightVision = false, FOV_Arms = 70, FOV_Arms_Enabled = false
+    FOV_Arms = 70, FOV_Arms_Enabled = false
 }
 
 if PlayerGui:FindFirstChild("FustUI") then PlayerGui.FustUI:Destroy() end
@@ -179,7 +194,6 @@ AddToggle(p1, "HP Text", "ESP_HP_Text", 140)
 AddToggle(p1, "HP Bar", "ESP_HP_Bar", 175)
 AddToggle(p1, "Weapon Text", "ESP_WeaponText", 210)
 AddToggle(p1, "Weapon Icon", "ESP_WeaponIcon", 245)
-AddToggle(p1, "Guns ESP (Ground)", "ESP_GunsGround", 280)
 
 local p2 = CreateTab("Aimbot", 2)
 AddToggle(p2, "Enable Aimbot", "Aim_Enabled", 0)
@@ -194,13 +208,11 @@ AddSlider(p2, "BT Chance", "BT_Chance", 1, 100, 310)
 AddSlider(p2, "BT Radius", "BT_Radius", 100, 2000, 360)
 
 local p3 = CreateTab("Visuals", 3)
-AddToggle(p3, "Night Vision", "NightVision", 0)
-AddToggle(p3, "Enable FOV Hands", "FOV_Arms_Enabled", 35)
-AddSlider(p3, "FOV Hands Size", "FOV_Arms", 60, 300, 70)
+AddToggle(p3, "Enable FOV Hands", "FOV_Arms_Enabled", 0)
+AddSlider(p3, "FOV Hands Size", "FOV_Arms", 60, 300, 35)
 SwitchTab(1)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
 local Camera = workspace.CurrentCamera
 local LP = Players.LocalPlayer
 local Fust = _G.Fust
@@ -311,24 +323,10 @@ workspace.DescendantAdded:Connect(function(inst)
     end
 end)
 
--- Запоминаем изначальные настройки света, чтобы не было бага с зеленым экраном
-local defaultBrightness = Lighting.Brightness
-local defaultGlobalShadows = Lighting.GlobalShadows
-
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- FOV рук (только если включен тумблер)
         if Config.FOV_Arms_Enabled then
             Camera.FieldOfView = Config.FOV_Arms
-        end
-        
-        -- Безопасный Night Vision (только яркость и тени)
-        if Config.NightVision then
-            Lighting.Brightness = 3
-            Lighting.GlobalShadows = false
-        else
-            Lighting.Brightness = defaultBrightness
-            Lighting.GlobalShadows = defaultGlobalShadows
         end
 
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
@@ -356,35 +354,6 @@ local Gui = Fust.Gui
 
 local Icons = {["AK-47"]="rbxassetid://112199877713402", ["M4A1"]="rbxassetid://112199886750135", Default="rbxassetid://1316045217"}
 local espData = {}
-
-task.spawn(function()
-    while task.wait(2) do
-        if Config.ESP_GunsGround then
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if (obj:IsA("Tool") or (obj:IsA("Model") and obj.Name:lower():find("gun"))) and not obj:GetAttribute("FustGunESP") then
-                    if not obj:IsDescendantOf(LP.Character) then
-                        obj:SetAttribute("FustGunESP", true)
-                        local hl = Instance.new("Highlight")
-                        hl.FillColor = Color3.fromRGB(255, 150, 0)
-                        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                        hl.FillTransparency = 0.5
-                        hl.OutlineTransparency = 0
-                        hl.Adornee = obj
-                        hl.Parent = obj
-                    end
-                end
-            end
-        else
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:GetAttribute("FustGunESP") then
-                    local hl = obj:FindFirstChildOfClass("Highlight")
-                    if hl then hl:Destroy() end
-                    obj:SetAttribute("FustGunESP", nil)
-                end
-            end
-        end
-    end
-end)
 
 local function getWeaponName(char)
     local tool = char:FindFirstChildWhichIsA("Tool")
