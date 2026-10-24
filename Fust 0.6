@@ -15,7 +15,7 @@ Fust.Config = {
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
-    NightVision = false, FOV_Arms = 70
+    NightVision = false, FOV_Arms = 70, FOV_Arms_Enabled = false
 }
 
 if PlayerGui:FindFirstChild("FustUI") then PlayerGui.FustUI:Destroy() end
@@ -195,9 +195,9 @@ AddSlider(p2, "BT Radius", "BT_Radius", 100, 2000, 360)
 
 local p3 = CreateTab("Visuals", 3)
 AddToggle(p3, "Night Vision", "NightVision", 0)
-AddSlider(p3, "FOV Hands", "FOV_Arms", 60, 300, 35)
+AddToggle(p3, "Enable FOV Hands", "FOV_Arms_Enabled", 35)
+AddSlider(p3, "FOV Hands Size", "FOV_Arms", 60, 300, 70)
 SwitchTab(1)
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -311,19 +311,24 @@ workspace.DescendantAdded:Connect(function(inst)
     end
 end)
 
+-- Запоминаем изначальные настройки света, чтобы не было бага с зеленым экраном
+local defaultBrightness = Lighting.Brightness
+local defaultGlobalShadows = Lighting.GlobalShadows
+
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Безопасный FOV рук
-        if Camera.FieldOfView ~= Config.FOV_Arms then
+        -- FOV рук (только если включен тумблер)
+        if Config.FOV_Arms_Enabled then
             Camera.FieldOfView = Config.FOV_Arms
         end
         
-        -- Безопасный Night Vision (без зеленого фильтра)
+        -- Безопасный Night Vision (только яркость и тени)
         if Config.NightVision then
-            Lighting.Brightness = 2
+            Lighting.Brightness = 3
             Lighting.GlobalShadows = false
-            Lighting.Ambient = Color3.fromRGB(130, 130, 130)
-            Lighting.OutdoorAmbient = Color3.fromRGB(130, 130, 130)
+        else
+            Lighting.Brightness = defaultBrightness
+            Lighting.GlobalShadows = defaultGlobalShadows
         end
 
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
@@ -339,7 +344,6 @@ RunService.RenderStepped:Connect(function()
         end
     end)
 end)
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
@@ -353,7 +357,6 @@ local Gui = Fust.Gui
 local Icons = {["AK-47"]="rbxassetid://112199877713402", ["M4A1"]="rbxassetid://112199886750135", Default="rbxassetid://1316045217"}
 local espData = {}
 
--- GUNS ESP (Оружие на земле)
 task.spawn(function()
     while task.wait(2) do
         if Config.ESP_GunsGround then
@@ -464,7 +467,6 @@ RunService.RenderStepped:Connect(function()
                         e.icon.Visible = false
                     end
                     
-                    -- HP (Текст и Полоска)
                     local hpPct = hu.Health / hu.MaxHealth
                     e.hpTxt.Visible = Config.ESP_HP_Text
                     e.hpTxt.Position = UDim2.new(0, tp.X - 15, 1, 2)
