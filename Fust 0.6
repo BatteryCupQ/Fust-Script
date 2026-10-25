@@ -4,21 +4,16 @@ local UserInputService = game:GetService("UserInputService")
 local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
 
--- ОЧИСТКА СТАРЫХ ЭФФЕКТОВ (Лечим застрявший зеленый экран)
-for _, v in ipairs(game:GetService("Lighting"):GetChildren()) do
-    if v:IsA("ColorCorrectionEffect") or v:IsA("Atmosphere") then v:Destroy() end
-end
-
 _G.Fust = _G.Fust or {}
 local Fust = _G.Fust
 
 Fust.Config = {
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
-    ESP_WeaponText = true, ESP_WeaponIcon = false,
-    ESP_HP_Text = true, ESP_HP_Bar = true,
+    ESP_WeaponText = true, ESP_WeaponIcon = false, ESP_HP_Text = true,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
-    BT_Enabled = false, BT_Chance = 100, BT_Radius = 500
+    BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
+    NightVision = false, FOV_Arms_Enabled = false, FOV_Arms = 70
 }
 
 if PlayerGui:FindFirstChild("FustUI") then PlayerGui.FustUI:Destroy() end
@@ -103,7 +98,7 @@ end
 
 local function CreateTab(name, idx)
     local btn = Instance.new("TextButton", TabBar)
-    btn.Size, btn.Position = UDim2.new(1/2, 0, 1, 0), UDim2.new((idx-1)/2, 0, 0, 0)
+    btn.Size, btn.Position = UDim2.new(1/3, 0, 1, 0), UDim2.new((idx-1)/3, 0, 0, 0)
     btn.BackgroundColor3, btn.BackgroundTransparency, btn.Text = T.accent, 1, name
     btn.TextColor3, btn.Font, btn.TextSize = T.text, Enum.Font.GothamBold, 12
     local page = Instance.new("ScrollingFrame", Content)
@@ -179,9 +174,8 @@ AddToggle(p1, "Draw Boxes", "ESP_Boxes", 35)
 AddToggle(p1, "Draw Names", "ESP_Names", 70)
 AddToggle(p1, "Bot ESP (NPCs)", "ESP_Bots", 105)
 AddToggle(p1, "HP Text", "ESP_HP_Text", 140)
-AddToggle(p1, "HP Bar", "ESP_HP_Bar", 175)
-AddToggle(p1, "Weapon Text", "ESP_WeaponText", 210)
-AddToggle(p1, "Weapon Icon", "ESP_WeaponIcon", 245)
+AddToggle(p1, "Weapon Text", "ESP_WeaponText", 175)
+AddToggle(p1, "Weapon Icon", "ESP_WeaponIcon", 210)
 
 local p2 = CreateTab("Aimbot", 2)
 AddToggle(p2, "Enable Aimbot", "Aim_Enabled", 0)
@@ -195,10 +189,16 @@ AddToggle(p2, "Bullet Track (Physical)", "BT_Enabled", 275)
 AddSlider(p2, "BT Chance", "BT_Chance", 1, 100, 310)
 AddSlider(p2, "BT Radius", "BT_Radius", 100, 2000, 360)
 
+local p3 = CreateTab("Visuals", 3)
+AddToggle(p3, "Night Vision (Day Time)", "NightVision", 0)
+AddToggle(p3, "Enable FOV Hands", "FOV_Arms_Enabled", 35)
+AddSlider(p3, "FOV Hands Size", "FOV_Arms", 60, 300, 70)
+
 SwitchTab(1)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local Camera = workspace.CurrentCamera
 local LP = Players.LocalPlayer
 local Fust = _G.Fust
@@ -215,6 +215,10 @@ fovCircle.BackgroundTransparency = 1
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(0.5, 0)
 local fovStroke = Instance.new("UIStroke", fovCircle)
 fovStroke.Color, fovStroke.Thickness, fovStroke.Transparency = T.accent, 1, 0.3
+
+-- Сохраняем стандартные настройки, чтобы вернуть их при выключении
+local defaultFOV = 70
+local defaultClockTime = Lighting.ClockTime
 
 function Fust.IsValid(char)
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -311,6 +315,22 @@ end)
 
 RunService.RenderStepped:Connect(function()
     pcall(function()
+        -- Безопасный FOV рук
+        if Config.FOV_Arms_Enabled then
+            Camera.FieldOfView = Config.FOV_Arms
+        else
+            if Camera.FieldOfView ~= defaultFOV then
+                Camera.FieldOfView = defaultFOV
+            end
+        end
+
+        -- Безопасный Night Vision (просто делает день)
+        if Config.NightVision then
+            Lighting.ClockTime = 14
+        else
+            Lighting.ClockTime = defaultClockTime
+        end
+
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, Config.Aim_FOV * 2, 0, Config.Aim_FOV * 2)
@@ -324,6 +344,7 @@ RunService.RenderStepped:Connect(function()
         end
     end)
 end)
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
@@ -374,7 +395,7 @@ RunService.RenderStepped:Connect(function()
                     if not e then
                         e = { 
                             b = Instance.new("Frame", Gui), n = Instance.new("TextLabel", Gui), icon = Instance.new("ImageLabel", Gui),
-                            hpTxt = Instance.new("TextLabel", Gui), hpBarBg = Instance.new("Frame", Gui), hpBarFill = Instance.new("Frame", Gui)
+                            hpTxt = Instance.new("TextLabel", Gui) -- Только текст ХП
                         }
                         e.b.BackgroundTransparency = 1; e.b.BorderSizePixel = 0
                         Instance.new("UIStroke", e.b).Color = Color3.fromRGB(255,60,60)
@@ -386,9 +407,6 @@ RunService.RenderStepped:Connect(function()
                         
                         e.hpTxt.BackgroundTransparency = 1; e.hpTxt.TextColor3 = Color3.fromRGB(0,255,0)
                         e.hpTxt.Font = Enum.Font.GothamBold; e.hpTxt.TextSize = 10; e.hpTxt.TextStrokeTransparency = 0
-                        
-                        e.hpBarBg.BackgroundColor3 = Color3.fromRGB(20,20,20); e.hpBarBg.BorderSizePixel = 0
-                        e.hpBarFill.BackgroundColor3 = Color3.fromRGB(0,255,0); e.hpBarFill.BorderSizePixel = 0
                         
                         espData[ch] = e
                     end
@@ -418,36 +436,28 @@ RunService.RenderStepped:Connect(function()
                         e.icon.Visible = false
                     end
                     
-                    local hpPct = hu.Health / hu.MaxHealth
+                    -- Только Текст ХП
                     e.hpTxt.Visible = Config.ESP_HP_Text
                     e.hpTxt.Position = UDim2.new(0, tp.X - 15, 1, 2)
                     e.hpTxt.Size = UDim2.new(0, 30, 0, 12)
                     e.hpTxt.Text = tostring(math.floor(hu.Health))
-                    
-                    e.hpBarBg.Visible = Config.ESP_HP_Bar
-                    e.hpBarFill.Visible = Config.ESP_HP_Bar
-                    e.hpBarBg.Position = UDim2.new(0, tp.X - (hh*0.3) - 5, 0, tp.Y)
-                    e.hpBarBg.Size = UDim2.new(0, 3, 0, hh)
-                    e.hpBarFill.Position = UDim2.new(0, 0, 1 - hpPct, 0)
-                    e.hpBarFill.Size = UDim2.new(1, 0, hpPct, 0)
-                    e.hpBarFill.BackgroundColor3 = Color3.fromRGB(255 * (1-hpPct), 255 * hpPct, 0)
                 else
                     if espData[ch] then 
                         espData[ch].b.Visible = false; espData[ch].n.Visible = false; espData[ch].icon.Visible = false
-                        espData[ch].hpTxt.Visible = false; espData[ch].hpBarBg.Visible = false
+                        espData[ch].hpTxt.Visible = false
                     end
                 end
             else
                 if espData[ch] then 
                     espData[ch].b.Visible = false; espData[ch].n.Visible = false; espData[ch].icon.Visible = false
-                    espData[ch].hpTxt.Visible = false; espData[ch].hpBarBg.Visible = false
+                    espData[ch].hpTxt.Visible = false
                 end
             end
         end
 
         for ch, e in pairs(espData) do
             if not ch.Parent or not table.find(draw, ch) then
-                e.b:Destroy(); e.n:Destroy(); e.icon:Destroy(); e.hpTxt:Destroy(); e.hpBarBg:Destroy()
+                e.b:Destroy(); e.n:Destroy(); e.icon:Destroy(); e.hpTxt:Destroy()
                 espData[ch] = nil
             end
         end
