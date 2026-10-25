@@ -8,18 +8,13 @@ _G.Fust = _G.Fust or {}
 local Fust = _G.Fust
 
 Fust.Config = {
-    -- Human ESP
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
     ESP_WeaponText = true, ESP_WeaponIcon = false, ESP_HP_Text = true,
-    -- World ESP
-    ESP_Wood = false, ESP_Stone = false, ESP_Sulfur = false, ESP_Metal = false, ESP_Cloth = false,
-    WorldESP_MaxDist = 600,
-    -- Aimbot
+    ESP_Wood = true, ESP_Stone = true, ESP_Sulfur = true, ESP_Metal = true, ESP_Cloth = true,
+    WorldESP_MaxDist = 300,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
-    -- BT
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
-    -- Visuals
     NightVision = false
 }
 
@@ -39,7 +34,6 @@ Gui.DisplayOrder = 999
 Gui.Parent = PlayerGui
 Fust.Gui = Gui
 
--- СЧЕТЧИКИ
 local CounterFrame = Instance.new("Frame", Gui)
 CounterFrame.Size = UDim2.new(0, 140, 0, 30)
 CounterFrame.Position = UDim2.new(1, -150, 0, 20)
@@ -57,7 +51,6 @@ CounterText.Font = Enum.Font.GothamBold
 CounterText.TextSize = 12
 Fust.CounterText = CounterText
 
--- МЕНЮ
 local Main = Instance.new("Frame", Gui)
 Main.Size = UDim2.new(0, 360, 0, 380)
 Main.Position = UDim2.new(0.5, -180, 0.5, -190)
@@ -405,40 +398,38 @@ local Icons = {["AK-47"]="rbxassetid://112199877713402", ["M4A1"]="rbxassetid://
 local espData = {}
 local worldESPObjects = {}
 
--- ФИЛЬТР ПО ПЛОТНОСТИ И МАССЕ (Руды тяжелые, мусор легкий)
-local function isHeavyResource(obj)
-    local part = nil
-    if obj:IsA("BasePart") then part = obj
-    elseif obj:IsA("Model") then
-        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+-- ЖЕЛЕЗНЫЙ ФИЛЬТР (Стены и мусор отсеиваются)
+local function isResource(obj)
+    local name = string.lower(obj.Name)
+    
+    -- Игнорируем всё, что похоже на постройки и мусор
+    local blacklist = {"wall", "floor", "ceiling", "foundation", "door", "window", "stairs", "ramp", "building", "barricade", "prop", "decor", "rug", "light", "sign", "tool", "weapon", "gun"}
+    for _, bad in ipairs(blacklist) do
+        if string.find(name, bad) then return false end
     end
     
-    if not part then return false end
-    
-    local mass = part.Mass
-    if mass and mass > 50 then return true end
-    
-    local phys = part.CustomPhysicalProperties
-    if phys and phys.Density > 1 then return true end
+    -- Ищем только ресурсы
+    local whitelist = {"ore", "node", "deposit", "resource", "sulfur", "metal", "wood", "log", "tree", "stone", "rock", "hemp", "cloth", "fabric", "scrap"}
+    for _, good in ipairs(whitelist) do
+        if string.find(name, good) then return true end
+    end
     
     return false
 end
 
--- Кэш ресурсов
+-- Кэш ресурсов (обновляется раз в 2 сек)
 task.spawn(function()
     while task.wait(2) do
         local newObjs = {}
         for _, v in ipairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") or v:IsA("Model") then
-                if isHeavyResource(v) then
-                    local pos = nil
-                    if v:IsA("BasePart") then pos = v.Position
-                    elseif v:IsA("Model") and v.PrimaryPart then pos = v.PrimaryPart.Position
-                    elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then pos = v:FindFirstChildWhichIsA("BasePart").Position end
-                    
-                    if pos then
-                        table.insert(newObjs, {obj = v, pos = pos, name = v.Name})
-                    end
+            if (v:IsA("BasePart") or v:IsA("Model")) and isResource(v) then
+                local pos = nil
+                if v:IsA("BasePart") then pos = v.Position
+                elseif v:IsA("Model") and v.PrimaryPart then pos = v.PrimaryPart.Position
+                elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then pos = v:FindFirstChildWhichIsA("BasePart").Position end
+                
+                if pos then
+                    table.insert(newObjs, {obj = v, pos = pos, name = v.Name})
                 end
             end
         end
@@ -539,7 +530,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- WORLD ESP (Только тяжелые ресурсы)
+        -- WORLD ESP (Только руды и ресурсы)
         local worldDraw = {}
         if Config.ESP_Wood or Config.ESP_Stone or Config.ESP_Sulfur or Config.ESP_Metal or Config.ESP_Cloth then
             for _, item in ipairs(worldESPObjects) do
