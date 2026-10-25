@@ -10,7 +10,7 @@ local Fust = _G.Fust
 Fust.Config = {
     ESP_Enabled = true, ESP_Boxes = true, ESP_Names = true, ESP_Bots = true,
     ESP_WeaponText = true, ESP_WeaponIcon = false, ESP_HP_Text = true,
-    ESP_Wood = true, ESP_Stone = true, ESP_Sulfur = true, ESP_Metal = true, ESP_Cloth = true,
+    ESP_Wood = false, ESP_Stone = false, ESP_Sulfur = true, ESP_Metal = false, ESP_Cloth = false,
     WorldESP_MaxDist = 300,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
@@ -398,38 +398,34 @@ local Icons = {["AK-47"]="rbxassetid://112199877713402", ["M4A1"]="rbxassetid://
 local espData = {}
 local worldESPObjects = {}
 
--- ЖЕЛЕЗНЫЙ ФИЛЬТР (Стены и мусор отсеиваются)
-local function isResource(obj)
+local function getResourceType(obj)
     local name = string.lower(obj.Name)
-    
-    -- Игнорируем всё, что похоже на постройки и мусор
     local blacklist = {"wall", "floor", "ceiling", "foundation", "door", "window", "stairs", "ramp", "building", "barricade", "prop", "decor", "rug", "light", "sign", "tool", "weapon", "gun"}
-    for _, bad in ipairs(blacklist) do
-        if string.find(name, bad) then return false end
-    end
+    for _, bad in ipairs(blacklist) do if string.find(name, bad) then return nil end end
     
-    -- Ищем только ресурсы
-    local whitelist = {"ore", "node", "deposit", "resource", "sulfur", "metal", "wood", "log", "tree", "stone", "rock", "hemp", "cloth", "fabric", "scrap"}
-    for _, good in ipairs(whitelist) do
-        if string.find(name, good) then return true end
-    end
-    
-    return false
+    if string.find(name, "sulfur") or string.find(name, "sulphur") then return "Sulfur" end
+    if string.find(name, "metal") or string.find(name, "iron") or string.find(name, "copper") then return "Metal" end
+    if string.find(name, "wood") or string.find(name, "log") or string.find(name, "tree") then return "Wood" end
+    if string.find(name, "stone") or string.find(name, "rock") or string.find(name, "ore") or string.find(name, "node") then return "Stone" end
+    if string.find(name, "cloth") or string.find(name, "fabric") or string.find(name, "hemp") or string.find(name, "scrap") then return "Cloth" end
+    return nil
 end
 
--- Кэш ресурсов (обновляется раз в 2 сек)
 task.spawn(function()
     while task.wait(2) do
         local newObjs = {}
         for _, v in ipairs(workspace:GetDescendants()) do
-            if (v:IsA("BasePart") or v:IsA("Model")) and isResource(v) then
-                local pos = nil
-                if v:IsA("BasePart") then pos = v.Position
-                elseif v:IsA("Model") and v.PrimaryPart then pos = v.PrimaryPart.Position
-                elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then pos = v:FindFirstChildWhichIsA("BasePart").Position end
-                
-                if pos then
-                    table.insert(newObjs, {obj = v, pos = pos, name = v.Name})
+            if v:IsA("BasePart") or v:IsA("Model") then
+                local rType = getResourceType(v)
+                if rType then
+                    local pos = nil
+                    if v:IsA("BasePart") then pos = v.Position
+                    elseif v:IsA("Model") and v.PrimaryPart then pos = v.PrimaryPart.Position
+                    elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then pos = v:FindFirstChildWhichIsA("BasePart").Position end
+                    
+                    if pos then
+                        table.insert(newObjs, {obj = v, pos = pos, name = v.Name, rType = rType})
+                    end
                 end
             end
         end
@@ -463,7 +459,6 @@ RunService.RenderStepped:Connect(function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
-        -- HUMAN ESP
         for _, ch in ipairs(draw) do
             local h, r, hu = ch:FindFirstChild("Head"), ch:FindFirstChild("HumanoidRootPart"), ch:FindFirstChildOfClass("Humanoid")
             if h and r and hu and hu.Health > 0 then
@@ -530,11 +525,18 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- WORLD ESP (Только руды и ресурсы)
+        -- WORLD ESP
         local worldDraw = {}
-        if Config.ESP_Wood or Config.ESP_Stone or Config.ESP_Sulfur or Config.ESP_Metal or Config.ESP_Cloth then
-            for _, item in ipairs(worldESPObjects) do
-                if item.obj and item.obj.Parent then
+        for _, item in ipairs(worldESPObjects) do
+            if item.obj and item.obj.Parent then
+                local isEnabled = false
+                if item.rType == "Wood" and Config.ESP_Wood then isEnabled = true end
+                if item.rType == "Stone" and Config.ESP_Stone then isEnabled = true end
+                if item.rType == "Sulfur" and Config.ESP_Sulfur then isEnabled = true end
+                if item.rType == "Metal" and Config.ESP_Metal then isEnabled = true end
+                if item.rType == "Cloth" and Config.ESP_Cloth then isEnabled = true end
+                
+                if isEnabled then
                     local dist = 0
                     if myRoot then dist = (item.pos - myRoot.Position).Magnitude end
                     
