@@ -14,7 +14,7 @@ Fust.Config = {
     WorldESP_MaxDist = 300,
     Aim_Enabled = true, Aim_Bots = true, Aim_VisibleCheck = true, Aim_Part = "Head",
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
-    MagicBullet = false, -- НОВОЕ: Магические пули через камеру
+    MagicBullet = false,
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
     NightVision = false
 }
@@ -223,7 +223,7 @@ AddToggle(aimFrame, "Enable Aimbot", "Aim_Enabled", 0)
 AddToggle(aimFrame, "Bot Aim (NPCs)", "Aim_Bots", 35)
 AddToggle(aimFrame, "Visible Check", "Aim_VisibleCheck", 70)
 AddToggle(aimFrame, "Show FOV Circle", "Aim_ShowFOV", 105)
-AddToggle(aimFrame, "Magic Bullet (Camera)", "MagicBullet", 140) -- НОВОЕ
+AddToggle(aimFrame, "Magic Bullet (Camera)", "MagicBullet", 140)
 local targetBg = Instance.new("Frame", aimFrame)
 targetBg.Size, targetBg.Position, targetBg.BackgroundTransparency = UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 175), 1
 local btnH = Instance.new("TextButton", targetBg); btnH.Size, btnH.Position, btnH.Text, btnH.Font, btnH.TextSize = UDim2.new(0.5, -2, 1, 0), UDim2.new(0, 0, 0, 0), "Head", Enum.Font.GothamBold, 12
@@ -256,7 +256,6 @@ SwitchTab(1)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LP = Players.LocalPlayer
 local Fust = _G.Fust
@@ -335,23 +334,6 @@ function Fust.GetTarget(fov, dist)
     return best
 end
 
--- ═══════════ MAGIC BULLET (ЧЕРЕЗ КАМЕРУ) ═══════════
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp or not Config.MagicBullet or not Config.Aim_Enabled then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        local target = Fust.GetTarget(Config.Aim_FOV, 1500)
-        if target then
-            local oldCF = Camera.CFrame
-            -- Мгновенный поворот камеры на цель
-            Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-            -- Возвращаем через 0.05 сек (чтобы игра успела отправить выстрел)
-            task.delay(0.05, function()
-                if Camera then Camera.CFrame = oldCF end
-            end)
-        end
-    end
-end)
-
 task.spawn(function()
     while task.wait(1) do
         local pc, bc = 0, 0
@@ -389,7 +371,6 @@ workspace.DescendantAdded:Connect(function(inst)
     end
 end)
 
--- Главный цикл (Умный цвет FOV)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if Config.NightVision then
@@ -406,12 +387,14 @@ RunService.RenderStepped:Connect(function()
         if Config.Aim_Enabled and not Config.BT_Enabled then
             local target = Fust.GetTarget(Config.Aim_FOV, 1500)
             if target then
-                fovStroke.Color = Color3.fromRGB(0, 255, 0) -- Зеленый (цель есть)
-                if not Config.MagicBullet then
+                fovStroke.Color = Color3.fromRGB(0, 255, 0)
+                if Config.MagicBullet then
+                    Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
+                else
                     Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, target.Position), Config.Aim_Smooth / 10)
                 end
             else
-                fovStroke.Color = Color3.fromRGB(255, 60, 60) -- Красный (цели нет)
+                fovStroke.Color = Color3.fromRGB(255, 60, 60)
             end
         else
             fovStroke.Color = T.accent 
@@ -480,22 +463,25 @@ local function returnToPool(e)
     if e.hpTxt then e.hpTxt.Visible = false; table.insert(pool.hpTexts, e.hpTxt) end
 end
 
--- КЭШ РЕСУРСОВ
+-- УМНЫЙ КЭШ РЕСУРСОВ (С проверкой родителя)
 local worldESPObjects = {}
 local function getResourceType(obj)
     local name = string.lower(obj.Name)
-    local blacklist = {"wall", "floor", "ceiling", "foundation", "door", "window", "stairs", "ramp", "building", "barricade", "prop", "decor", "rug", "light", "sign", "tool", "weapon", "gun", "box", "chest", "lid", "storage", "bag", "sack", "cupboard", "workbench", "furnace", "deployed"}
-    for _, bad in ipairs(blacklist) do if string.find(name, bad) then return nil end end
+    local parentName = string.lower(obj.Parent.Name)
+    local combined = name .. " " .. parentName -- Склеиваем имя объекта и папки
     
-    if string.find(name, "node") or string.find(name, "ore") then
-        if string.find(name, "sulfur") or string.find(name, "sulphur") then return "Sulfur" end
-        if string.find(name, "metal") or string.find(name, "iron") or string.find(name, "copper") then return "Metal" end
-        if string.find(name, "stone") or string.find(name, "rock") then return "Stone" end
-        return "Stone"
-    end
-    if string.find(name, "tree") or string.find(name, "log") then return "Wood" end
-    if string.find(name, "hemp") or string.find(name, "fabric") then return "Cloth" end
-    return nil
+    -- Черный список (ящики, стены, крышки)
+    local blacklist = {"wall", "floor", "ceiling", "foundation", "door", "window", "stairs", "ramp", "building", "barricade", "prop", "decor", "rug", "light", "sign", "tool", "weapon", "gun", "box", "chest", "lid", "storage", "bag", "sack", "cupboard", "workbench", "furnace", "deployed"}
+    for _, bad in ipairs(blacklist) do if string.find(combined, bad) then return nil end end
+    
+    -- Распределяем по типам
+    if string.find(combined, "sulfur") or string.find(combined, "sulphur") then return "Sulfur" end
+    if string.find(combined, "metal") or string.find(combined, "iron") or string.find(combined, "copper") then return "Metal" end
+    if string.find(combined, "stone") or string.find(combined, "rock") then return "Stone" end
+    if string.find(combined, "tree") or string.find(combined, "wood") or string.find(combined, "log") then return "Wood" end
+    if string.find(combined, "hemp") or string.find(combined, "fabric") or string.find(combined, "cloth") then return "Cloth" end
+    
+    return nil -- Если не подошло, игнорируем
 end
 
 local function checkResource(v)
