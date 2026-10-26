@@ -16,7 +16,7 @@ Fust.Config = {
     Aim_Smooth = 3, Aim_FOV = 150, Aim_ShowFOV = true,
     MagicBullet = false,
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
-    NightVision = false, Freecam = false -- НОВОЕ: Свободная камера
+    NightVision = false, Freecam = false
 }
 
 if PlayerGui:FindFirstChild("FustUI") then PlayerGui.FustUI:Destroy() end
@@ -251,13 +251,14 @@ local visScroll = Instance.new("ScrollingFrame", p3)
 visScroll.Size = UDim2.new(1, -10, 1, -5); visScroll.Position = UDim2.new(0, 5, 0, 0); visScroll.BackgroundTransparency = 1
 visScroll.BorderSizePixel = 0; visScroll.ScrollBarThickness = 3
 AddToggle(visScroll, "Night Vision", "NightVision", 0)
-AddToggle(visScroll, "Freecam", "Freecam", 35) -- НОВОЕ
+AddToggle(visScroll, "Freecam", "Freecam", 35)
 
 SwitchTab(1)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local Camera = workspace.CurrentCamera
 local LP = Players.LocalPlayer
 local Fust = _G.Fust
@@ -373,42 +374,65 @@ workspace.DescendantAdded:Connect(function(inst)
     end
 end)
 
--- ═══════════ FREECAM LOGIC ═══════════
+-- ═══════════ FREECAM (ИСПРАВЛЕННЫЙ) ═══════════
+local isFreecamActive = false
 local freecamPos = Vector3.zero
-local freecamRotX, freecamRotY = 0, 0
-local isFreecamInit = false
+local freecamYaw, freecamPitch = 0, 0
+local touchStartedOnGui = false
 
-UserInputService.InputChanged:Connect(function(input)
-    if Config.Freecam and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local sens = 0.003
-        freecamRotX = freecamRotX - input.Delta.X * sens
-        freecamRotY = math.clamp(freecamRotY - input.Delta.Y * sens, -math.pi/2 + 0.1, math.pi/2 - 0.1)
+local function isOverMenu(pos)
+    local guiObjects = GuiService:GetGuiObjectsAtPosition(pos.X, pos.Y)
+    for _, obj in ipairs(guiObjects) do
+        if obj:IsDescendantOf(Gui) then return true end
+    end
+    return false
+end
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp or not Config.Freecam then return end
+    if input.UserInputType == Enum.UserInputType.Touch then
+        touchStartedOnGui = isOverMenu(input.Position)
     end
 end)
 
-RunService:BindToRenderStep("FreecamCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
+UserInputService.InputChanged:Connect(function(input)
+    if not Config.Freecam then return end
+    
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if not UserInputService:GetFocusedTextBox() then
+            freecamYaw = freecamYaw - input.Delta.X * 0.003
+            freecamPitch = math.clamp(freecamPitch - input.Delta.Y * 0.003, -math.pi/2 + 0.1, math.pi/2 - 0.1)
+        end
+    elseif input.UserInputType == Enum.UserInputType.Touch then
+        if not touchStartedOnGui then
+            freecamYaw = freecamYaw - input.Delta.X * 0.005
+            freecamPitch = math.clamp(freecamPitch - input.Delta.Y * 0.005, -math.pi/2 + 0.1, math.pi/2 - 0.1)
+        end
+    end
+end)
+
+RunService:BindToRenderStep("FreecamCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
     local char = LP.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
 
     if Config.Freecam then
-        if not isFreecamInit then
+        if not isFreecamActive then
+            isFreecamActive = true
             Camera.CameraType = Enum.CameraType.Scriptable
             freecamPos = Camera.CFrame.Position
-            isFreecamInit = true
+            local rx, ry, _ = Camera.CFrame:ToEulerAnglesYXZ()
+            freecamPitch, freecamYaw = rx, ry
         end
 
-        -- Движение (WASD или джойстик)
-        local moveDir = hum and hum.MoveDirection or Vector3.zero
         local speed = 60
-        local lookCF = CFrame.Angles(0, freecamRotX, 0) * CFrame.Angles(freecamRotY, 0, 0)
-
-        if moveDir.Magnitude > 0 then
-            local moveVec = (lookCF.LookVector * -moveDir.Z + lookCF.RightVector * moveDir.X) * speed * dt
+        local lookCF = CFrame.Angles(0, freecamYaw, 0) * CFrame.Angles(freecamPitch, 0, 0)
+        
+        if hum and hum.MoveDirection.Magnitude > 0.1 then
+            local moveVec = (lookCF.LookVector * -hum.MoveDirection.Z + lookCF.RightVector * hum.MoveDirection.X) * speed * dt
             freecamPos = freecamPos + moveVec
         end
         
-        -- Клавиатура (ПК)
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then freecamPos = freecamPos + lookCF.LookVector * speed * dt end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then freecamPos = freecamPos - lookCF.LookVector * speed * dt end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then freecamPos = freecamPos - lookCF.RightVector * speed * dt end
@@ -416,18 +440,19 @@ RunService:BindToRenderStep("FreecamCam", Enum.RenderPriority.Camera.Value + 1, 
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then freecamPos = freecamPos + Vector3.new(0, speed * dt, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then freecamPos = freecamPos - Vector3.new(0, speed * dt, 0) end
 
-        Camera.CFrame = CFrame.new(freecamPos) * lookCF
+        local targetCF = CFrame.new(freecamPos) * lookCF
+        Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.5)
     else
-        if isFreecamInit then
+        if isFreecamActive then
+            isFreecamActive = false
             Camera.CameraType = Enum.CameraType.Custom
             if hum then Camera.CameraSubject = hum end
-            isFreecamInit = false
-            freecamRotX, freecamRotY = 0, 0
+            freecamYaw, freecamPitch = 0, 0
         end
     end
 end)
 
--- ═══════════ AIMBOT (Блокируется при Freecam) ═══════════
+-- ═══════════ АИМБОТ ═══════════
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if Config.NightVision then
@@ -472,7 +497,7 @@ local Gui = Fust.Gui
 local Icons = {["AK-47"]="rbxassetid://112199877713402", ["M4A1"]="rbxassetid://112199886750135", Default="rbxassetid://1316045217"}
 local espData = {}
 
--- ПУЛ ОБЪЕКТОВ (Создаем один раз, переиспользуем)
+-- ПУЛ ОБЪЕКТОВ
 local pool = { frames = {}, labels = {}, icons = {}, hpTexts = {} }
 
 local function getFrame()
@@ -520,20 +545,16 @@ local function returnToPool(e)
     if e.hpTxt then e.hpTxt.Visible = false; table.insert(pool.hpTexts, e.hpTxt) end
 end
 
--- УМНЫЙ КЭШ РЕСУРСОВ (Проверка имени и папки)
+-- УМНЫЙ ФИЛЬТР РЕСУРСОВ
 local worldESPObjects = {}
 local function getResourceType(obj)
     local name = string.lower(obj.Name)
     local parentName = string.lower(obj.Parent.Name)
     local combined = name .. " " .. parentName
     
-    -- Черный список (ящики, стены, крышки и т.д.)
     local blacklist = {"wall", "floor", "ceiling", "foundation", "door", "window", "stairs", "ramp", "building", "barricade", "prop", "decor", "rug", "light", "sign", "tool", "weapon", "gun", "box", "chest", "lid", "storage", "bag", "sack", "cupboard", "workbench", "furnace", "deployed"}
-    for _, bad in ipairs(blacklist) do 
-        if string.find(combined, bad) then return nil end 
-    end
+    for _, bad in ipairs(blacklist) do if string.find(combined, bad) then return nil end end
     
-    -- Распределяем по типам
     if string.find(combined, "sulfur") or string.find(combined, "sulphur") then return "Sulfur" end
     if string.find(combined, "metal") or string.find(combined, "iron") or string.find(combined, "copper") then return "Metal" end
     if string.find(combined, "stone") or string.find(combined, "rock") then return "Stone" end
@@ -551,28 +572,22 @@ local function checkResource(v)
             if v:IsA("BasePart") then pos = v.Position
             elseif v:IsA("Model") and v.PrimaryPart then pos = v.PrimaryPart.Position
             elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then pos = v:FindFirstChildWhichIsA("BasePart").Position end
-            if pos then 
-                table.insert(worldESPObjects, {obj = v, pos = pos, name = v.Name, rType = rType}) 
-            end
+            if pos then table.insert(worldESPObjects, {obj = v, pos = pos, name = v.Name, rType = rType}) end
         end
     end
 end
 
 for _, v in ipairs(workspace:GetDescendants()) do checkResource(v) end
 workspace.DescendantAdded:Connect(checkResource)
-
--- Очистка мертвых объектов раз в 5 сек
 task.spawn(function()
     while task.wait(5) do
         for i = #worldESPObjects, 1, -1 do
-            if not worldESPObjects[i].obj.Parent then 
-                table.remove(worldESPObjects, i) 
-            end
+            if not worldESPObjects[i].obj.Parent then table.remove(worldESPObjects, i) end
         end
     end
 end)
 
--- КЭШ ВИДИМОСТИ (Обновляем раз в 0.15 сек для оптимизации)
+-- КЭШ ВИДИМОСТИ
 local visCache = {}
 local lastVisCheck = 0
 local function updateVisibility(drawList)
@@ -617,7 +632,7 @@ RunService.RenderStepped:Connect(function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
-        -- HUMAN ESP (Игроки и Боты)
+        -- HUMAN ESP
         for _, ch in ipairs(draw) do
             local h, r, hu = ch:FindFirstChild("Head"), ch:FindFirstChild("HumanoidRootPart"), ch:FindFirstChildOfClass("Humanoid")
             if h and r and hu and hu.Health > 0 then
@@ -636,7 +651,6 @@ RunService.RenderStepped:Connect(function()
                     e.b.Position = UDim2.new(0, tp.X - (hh*0.3), 0, tp.Y)
                     e.b.Size = UDim2.new(0, hh*0.6, 0, hh)
                     
-                    -- ЦВЕТА: Зеленый (видно) / Красный (не видно)
                     local stroke = e.b:FindFirstChildOfClass("UIStroke")
                     if stroke then
                         if visCache[ch] then
@@ -684,7 +698,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- WORLD ESP (Только белый текст)
+        -- WORLD ESP (Белый текст)
         local worldDraw = {}
         for _, item in ipairs(worldESPObjects) do
             if item.obj and item.obj.Parent then
@@ -717,7 +731,7 @@ RunService.RenderStepped:Connect(function()
             e.n.Visible = true
             e.n.Position = UDim2.new(0, data.pos.X - 50, 0, data.pos.Y - 20)
             e.n.Size = UDim2.new(0, 100, 0, 14)
-            e.n.TextColor3 = Color3.fromRGB(255, 255, 255) -- Белый цвет для руд
+            e.n.TextColor3 = Color3.fromRGB(255, 255, 255)
             e.n.Text = "[" .. data.name .. "] [" .. data.dist .. "m]"
         end
 
