@@ -19,7 +19,7 @@ Fust.Config = {
     -- BT
     BT_Enabled = false, BT_Chance = 100, BT_Radius = 500,
     -- Visuals
-    NightVision = false
+    NightVision = false, Optimization = false
 }
 
 if PlayerGui:FindFirstChild("FustUI") then PlayerGui.FustUI:Destroy() end
@@ -255,10 +255,11 @@ local visScroll = Instance.new("ScrollingFrame", p3)
 visScroll.Size = UDim2.new(1, -10, 1, -5); visScroll.Position = UDim2.new(0, 5, 0, 0); visScroll.BackgroundTransparency = 1
 visScroll.BorderSizePixel = 0; visScroll.ScrollBarThickness = 3
 AddToggle(visScroll, "Night Vision", "NightVision", 0)
+AddToggle(visScroll, "Optimization (Load Map)", "Optimization", 35)
 
 SwitchTab(1)
 
--- FUST SCRIPT | PART 2/3: AIM + AUTO LOGIC
+-- FUST SCRIPT | PART 2/3: AIM + OPTIMIZATION
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
@@ -270,50 +271,8 @@ local Config = Fust.Config
 local Gui = Fust.Gui
 local T = Fust.Theme
 
--- ═══════════ АВТО-ОПТИМИЗАЦИЯ (Запускается сразу) ═══════════
-local Lighting = game:GetService("Lighting")
-local Terrain = workspace:FindFirstChildOfClass("Terrain")
+Fust.BotCache = Fust.BotCache or {}
 
-Lighting.FogEnd = 500
-Lighting.GlobalShadows = false
-if Terrain then Terrain.Decoration = false end
-
-local function isGrassName(name)
-    name = string.lower(name)
-    return name:find("grass", 1, true) ~= nil or name:find("foliage", 1, true) ~= nil
-end
-
-local function hideGrass(inst)
-    if isGrassName(inst.Name) then
-        if inst:IsA("BasePart") then inst.LocalTransparencyModifier = 1
-        elseif inst:IsA("Decal") or inst:IsA("Texture") then inst.Transparency = 1 end
-    end
-end
-
-for _, inst in ipairs(workspace:GetDescendants()) do hideGrass(inst) end
-workspace.DescendantAdded:Connect(function(inst) task.defer(hideGrass, inst) end)
-
--- ═══════════ АВТО-ПРОГРУЗКА КАРТЫ (Запускается сразу) ═══════════
-task.spawn(function()
-    if workspace.StreamingEnabled then
-        print("[MAP] Начинаю фоновую прогрузку карты...")
-        pcall(function()
-            workspace.StreamingTargetRadius = 10000
-            workspace.StreamingMinRadius = 10000
-        end)
-        local step = 512
-        local range = 2048
-        for x = -range, range, step do
-            for z = -range, range, step do
-                pcall(function() workspace:RequestStreamAroundAsync(Vector3.new(x, 0, z), 0) end)
-                task.wait(0.1)
-            end
-        end
-        print("[MAP] Прогрузка завершена.")
-    end
-end)
-
--- ═══════════ АИМБОТ ═══════════
 local fovCircle = Instance.new("Frame", Gui)
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -352,18 +311,68 @@ function Fust.GetTarget(fov, dist)
             local sp, on = Camera:WorldToViewportPoint(h.Position)
             if on and sp.Z > 0 then
                 local d2 = (Vector2.new(sp.X, sp.Y) - ctr).Magnitude
-                if d2 < minD and isVis(h, ch) then minD = d2; best = h end
+                if d2 < minD and isVis(h, ch) then 
+                    minD = d2
+                    best = h 
+                end
             end
         end
     end
 
-    for _, plr in ipairs(Players:GetPlayers()) do if plr ~= LP then chk(plr.Character) end end
+    for _, plr in ipairs(Players:GetPlayers()) do 
+        if plr ~= LP then chk(plr.Character) end 
+    end
     if Config.Aim_Bots or Config.BT_Enabled then
-        for _, b in ipairs(Fust.BotCache or {}) do chk(b) end
+        for _, b in ipairs(Fust.BotCache) do chk(b) end
     end
     return best
 end
 
+-- ТУМБЛЕР ОПТИМИЗАЦИИ (Загрузка карты и удаление травы)
+local isOptimized = false
+task.spawn(function()
+    while task.wait(0.5) do
+        if Config.Optimization ~= isOptimized then
+            isOptimized = Config.Optimization
+            if isOptimized then
+                if workspace.StreamingEnabled then
+                    pcall(function()
+                        workspace.StreamingTargetRadius = 10000
+                        workspace.StreamingMinRadius = 10000
+                    end)
+                    task.spawn(function()
+                        local step = 512
+                        local range = 2048
+                        for x = -range, range, step do
+                            for z = -range, range, step do
+                                pcall(function() workspace:RequestStreamAroundAsync(Vector3.new(x, 0, z), 0) end)
+                                task.wait(0.1)
+                            end
+                        end
+                    end)
+                end
+                game:GetService("Lighting").FogEnd = 500
+                game:GetService("Lighting").GlobalShadows = false
+                local Terrain = workspace:FindFirstChildOfClass("Terrain")
+                if Terrain then Terrain.Decoration = false end
+                for _, inst in ipairs(workspace:GetDescendants()) do
+                    local name = string.lower(inst.Name)
+                    if name:find("grass") or name:find("foliage") then
+                        if inst:IsA("BasePart") then inst.LocalTransparencyModifier = 1
+                        elseif inst:IsA("Decal") or inst:IsA("Texture") then inst.Transparency = 1 end
+                    end
+                end
+            else
+                game:GetService("Lighting").FogEnd = 100000
+                game:GetService("Lighting").GlobalShadows = true
+                local Terrain = workspace:FindFirstChildOfClass("Terrain")
+                if Terrain then Terrain.Decoration = true end
+            end
+        end
+    end
+end)
+
+-- Кэш ботов
 task.spawn(function()
     while task.wait(4) do
         local newCache = {}
@@ -378,19 +387,23 @@ task.spawn(function()
     end
 end)
 
+-- Счетчики
 task.spawn(function()
     while task.wait(1) do
         local pc, bc = 0, 0
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and Fust.IsValid(plr.Character) then pc = pc + 1 end
         end
-        for _, b in ipairs(Fust.BotCache or {}) do
+        for _, b in ipairs(Fust.BotCache) do
             if Fust.IsValid(b) then bc = bc + 1 end
         end
-        if Fust.CounterText then Fust.CounterText.Text = string.format("Players: %d | Bots: %d", pc, bc) end
+        if Fust.CounterText then 
+            Fust.CounterText.Text = string.format("Players: %d | Bots: %d", pc, bc) 
+        end
     end
 end)
 
+-- Bullet Track
 workspace.DescendantAdded:Connect(function(inst)
     if not inst:IsA("BasePart") or not Config.BT_Enabled then return end
     local n = inst.Name:lower()
@@ -407,7 +420,9 @@ workspace.DescendantAdded:Connect(function(inst)
                             local d = (target.Position - inst.Position).Unit
                             inst.AssemblyLinearVelocity = d * 250
                             inst.CFrame = CFrame.lookAt(inst.Position, inst.Position + d)
-                        else break end
+                        else 
+                            break 
+                        end
                     end
                 end)
             end
@@ -415,6 +430,7 @@ workspace.DescendantAdded:Connect(function(inst)
     end
 end)
 
+-- Главный цикл аимбота
 local runtimeLastUpdate = 0
 RunService.RenderStepped:Connect(function()
     local now = os.clock()
@@ -428,7 +444,9 @@ RunService.RenderStepped:Connect(function()
         if Config.Aim_Enabled and Config.Aim_ShowFOV then
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, Config.Aim_FOV * 2, 0, Config.Aim_FOV * 2)
-        else fovCircle.Visible = false end
+        else 
+            fovCircle.Visible = false 
+        end
 
         if Config.Aim_Enabled and not Config.BT_Enabled then
             local target = Fust.GetTarget(Config.Aim_FOV, Config.Aim_MaxDist)
@@ -480,10 +498,16 @@ task.spawn(function()
                 local rType = getResourceType(v)
                 if rType then
                     local pos = nil
-                    if v:IsA("BasePart") then pos = v.Position
-                    elseif v:IsA("Model") and v.PrimaryPart then pos = v.PrimaryPart.Position
-                    elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then pos = v:FindFirstChildWhichIsA("BasePart").Position end
-                    if pos then table.insert(newObjs, {obj = v, pos = pos, name = v.Name, rType = rType}) end
+                    if v:IsA("BasePart") then 
+                        pos = v.Position
+                    elseif v:IsA("Model") and v.PrimaryPart then 
+                        pos = v.PrimaryPart.Position
+                    elseif v:IsA("Model") and v:FindFirstChildWhichIsA("BasePart") then 
+                        pos = v:FindFirstChildWhichIsA("BasePart").Position 
+                    end
+                    if pos then 
+                        table.insert(newObjs, {obj = v, pos = pos, name = v.Name, rType = rType}) 
+                    end
                 end
             end
         end
@@ -511,10 +535,14 @@ RunService.RenderStepped:Connect(function()
         local draw = {}
         if Config.ESP_Enabled then
             for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LP and Fust.IsValid(plr.Character) then table.insert(draw, plr.Character) end
+                if plr ~= LP and Fust.IsValid(plr.Character) then 
+                    table.insert(draw, plr.Character) 
+                end
             end
             if Config.ESP_Bots then
-                for _, b in ipairs(Fust.BotCache or {}) do if Fust.IsValid(b) then table.insert(draw, b) end end
+                for _, b in ipairs(Fust.BotCache or {}) do 
+                    if Fust.IsValid(b) then table.insert(draw, b) end 
+                end
             end
         end
 
@@ -522,69 +550,95 @@ RunService.RenderStepped:Connect(function()
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
         for _, ch in ipairs(draw) do
-            local h, r, hu = ch:FindFirstChild("Head"), ch:FindFirstChild("HumanoidRootPart"), ch:FindFirstChildOfClass("Humanoid")
+            local h = ch:FindFirstChild("Head")
+            local r = ch:FindFirstChild("HumanoidRootPart")
+            local hu = ch:FindFirstChildOfClass("Humanoid")
+            
             if h and r and hu and hu.Health > 0 then
                 local dist3d = myRoot and (r.Position - myRoot.Position).Magnitude or 0
-                if dist3d > Config.HumanESP_MaxDist then
-                    if espData[ch] then espData[ch].b.Visible = false; espData[ch].n.Visible = false; espData[ch].icon.Visible = false; espData[ch].hpTxt.Visible = false end
-                    continue
-                end
-
-                local tp, to = Camera:WorldToViewportPoint(h.Position + Vector3.new(0,0.5,0))
-                local bp, bo = Camera:WorldToViewportPoint(r.Position - Vector3.new(0,2.8,0))
                 
-                if to and bo and tp.Z > 0 then
-                    local e = espData[ch]
-                    if not e then
-                        e = { 
-                            b = Instance.new("Frame", Gui), n = Instance.new("TextLabel", Gui), icon = Instance.new("ImageLabel", Gui),
-                            hpTxt = Instance.new("TextLabel", Gui)
-                        }
-                        e.b.BackgroundTransparency = 1; e.b.BorderSizePixel = 0
-                        Instance.new("UIStroke", e.b).Color = Color3.fromRGB(255,60,60)
-                        e.n.BackgroundTransparency = 1; e.n.TextColor3 = Color3.new(1,1,1)
-                        e.n.Font = Enum.Font.GothamBold; e.n.TextSize = 11; e.n.TextStrokeTransparency = 0
-                        e.icon.BackgroundTransparency = 1; e.icon.Size = UDim2.new(0, 30, 0, 30)
-                        e.hpTxt.BackgroundTransparency = 1; e.hpTxt.TextColor3 = Color3.fromRGB(0,255,0)
-                        e.hpTxt.Font = Enum.Font.GothamBold; e.hpTxt.TextSize = 10; e.hpTxt.TextStrokeTransparency = 0
-                        espData[ch] = e
-                    end
-                    
-                    local hh = math.abs(bp.Y - tp.Y)
-                    e.b.Visible = Config.ESP_Boxes
-                    e.b.Position = UDim2.new(0, tp.X - (hh*0.3), 0, tp.Y)
-                    e.b.Size = UDim2.new(0, hh*0.6, 0, hh)
-                    
-                    e.n.Visible = Config.ESP_Names
-                    e.n.Position = UDim2.new(0, tp.X - 75, 0, tp.Y - 16)
-                    e.n.Size = UDim2.new(0, 150, 0, 14)
-                    
-                    local distStr = " [" .. math.floor(dist3d) .. "m]"
-                    local weapon = getWeaponName(ch)
-                    if weapon then
-                        e.n.Text = Config.ESP_WeaponText and (ch.Name .. " [" .. weapon .. "]" .. distStr) or (ch.Name .. distStr)
-                        if Config.ESP_WeaponIcon then
-                            e.icon.Visible = true
-                            e.icon.Position = UDim2.new(0, tp.X - 15, 0, tp.Y - 50)
-                            e.icon.Image = Icons[weapon] or Icons["Default"]
-                        else e.icon.Visible = false end
-                    else
-                        e.n.Text = ch.Name .. distStr
-                        e.icon.Visible = false
-                    end
-                    
-                    e.hpTxt.Visible = Config.ESP_HP_Text
-                    e.hpTxt.Position = UDim2.new(0, tp.X - 15, 0, bp.Y + 2)
-                    e.hpTxt.Size = UDim2.new(0, 30, 0, 12)
-                    e.hpTxt.Text = tostring(math.floor(hu.Health))
-                else
+                if dist3d > Config.HumanESP_MaxDist then
                     if espData[ch] then 
-                        espData[ch].b.Visible = false; espData[ch].n.Visible = false; espData[ch].icon.Visible = false; espData[ch].hpTxt.Visible = false
+                        espData[ch].b.Visible = false
+                        espData[ch].n.Visible = false
+                        espData[ch].icon.Visible = false
+                        espData[ch].hpTxt.Visible = false
+                    end
+                else
+                    local tp, to = Camera:WorldToViewportPoint(h.Position + Vector3.new(0,0.5,0))
+                    local bp, bo = Camera:WorldToViewportPoint(r.Position - Vector3.new(0,2.8,0))
+                    
+                    if to and bo and tp.Z > 0 then
+                        local e = espData[ch]
+                        if not e then
+                            e = { 
+                                b = Instance.new("Frame", Gui), 
+                                n = Instance.new("TextLabel", Gui), 
+                                icon = Instance.new("ImageLabel", Gui),
+                                hpTxt = Instance.new("TextLabel", Gui)
+                            }
+                            e.b.BackgroundTransparency = 1
+                            e.b.BorderSizePixel = 0
+                            Instance.new("UIStroke", e.b).Color = Color3.fromRGB(255,60,60)
+                            e.n.BackgroundTransparency = 1
+                            e.n.TextColor3 = Color3.new(1,1,1)
+                            e.n.Font = Enum.Font.GothamBold
+                            e.n.TextSize = 11
+                            e.n.TextStrokeTransparency = 0
+                            e.icon.BackgroundTransparency = 1
+                            e.icon.Size = UDim2.new(0, 30, 0, 30)
+                            e.hpTxt.BackgroundTransparency = 1
+                            e.hpTxt.TextColor3 = Color3.fromRGB(0,255,0)
+                            e.hpTxt.Font = Enum.Font.GothamBold
+                            e.hpTxt.TextSize = 10
+                            e.hpTxt.TextStrokeTransparency = 0
+                            espData[ch] = e
+                        end
+                        
+                        local hh = math.abs(bp.Y - tp.Y)
+                        e.b.Visible = Config.ESP_Boxes
+                        e.b.Position = UDim2.new(0, tp.X - (hh*0.3), 0, tp.Y)
+                        e.b.Size = UDim2.new(0, hh*0.6, 0, hh)
+                        
+                        e.n.Visible = Config.ESP_Names
+                        e.n.Position = UDim2.new(0, tp.X - 75, 0, tp.Y - 16)
+                        e.n.Size = UDim2.new(0, 150, 0, 14)
+                        
+                        local distStr = " [" .. math.floor(dist3d) .. "m]"
+                        local weapon = getWeaponName(ch)
+                        if weapon then
+                            e.n.Text = Config.ESP_WeaponText and (ch.Name .. " [" .. weapon .. "]" .. distStr) or (ch.Name .. distStr)
+                            if Config.ESP_WeaponIcon then
+                                e.icon.Visible = true
+                                e.icon.Position = UDim2.new(0, tp.X - 15, 0, tp.Y - 50)
+                                e.icon.Image = Icons[weapon] or Icons["Default"]
+                            else 
+                                e.icon.Visible = false 
+                            end
+                        else
+                            e.n.Text = ch.Name .. distStr
+                            e.icon.Visible = false
+                        end
+                        
+                        e.hpTxt.Visible = Config.ESP_HP_Text
+                        e.hpTxt.Position = UDim2.new(0, tp.X - 15, 0, bp.Y + 2)
+                        e.hpTxt.Size = UDim2.new(0, 30, 0, 12)
+                        e.hpTxt.Text = tostring(math.floor(hu.Health))
+                    else
+                        if espData[ch] then 
+                            espData[ch].b.Visible = false
+                            espData[ch].n.Visible = false
+                            espData[ch].icon.Visible = false
+                            espData[ch].hpTxt.Visible = false
+                        end
                     end
                 end
             else
                 if espData[ch] then 
-                    espData[ch].b.Visible = false; espData[ch].n.Visible = false; espData[ch].icon.Visible = false; espData[ch].hpTxt.Visible = false
+                    espData[ch].b.Visible = false
+                    espData[ch].n.Visible = false
+                    espData[ch].icon.Visible = false
+                    espData[ch].hpTxt.Visible = false
                 end
             end
         end
@@ -602,17 +656,19 @@ RunService.RenderStepped:Connect(function()
                 if isEnabled then
                     local dist = 0
                     local currentPos = item.pos
-                    if item.obj:IsA("BasePart") then currentPos = item.obj.Position
+                    if item.obj:IsA("BasePart") then 
+                        currentPos = item.obj.Position
                     elseif item.obj:IsA("Model") then
                         local rootPart = item.obj.PrimaryPart or item.obj:FindFirstChildWhichIsA("BasePart")
                         if rootPart then currentPos = rootPart.Position end
                     end
+                    
                     if myRoot then dist = (currentPos - myRoot.Position).Magnitude end
                     
                     if dist <= Config.WorldESP_MaxDist then
                         local sp, on = Camera:WorldToViewportPoint(currentPos)
-                        if on and sp.Z > 0 then
-                            worldDraw[item.obj] = { pos = Vector2.new(sp.X, sp.Y), name = item.name, dist = math.floor(dist) }
+                        if on and sp.Z > 0 then 
+                            worldDraw[item.obj] = { pos = Vector2.new(sp.X, sp.Y), name = item.name, dist = math.floor(dist) } 
                         end
                     end
                 end
@@ -623,8 +679,11 @@ RunService.RenderStepped:Connect(function()
             local e = espData[obj]
             if not e then
                 e = { n = Instance.new("TextLabel", Gui) }
-                e.n.BackgroundTransparency = 1; e.n.TextColor3 = Color3.fromRGB(255, 200, 50)
-                e.n.Font = Enum.Font.GothamBold; e.n.TextSize = 11; e.n.TextStrokeTransparency = 0
+                e.n.BackgroundTransparency = 1
+                e.n.TextColor3 = Color3.fromRGB(255, 200, 50)
+                e.n.Font = Enum.Font.GothamBold
+                e.n.TextSize = 11
+                e.n.TextStrokeTransparency = 0
                 espData[obj] = e
             end
             e.n.Visible = true
